@@ -1,0 +1,273 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_SafetyBase" Id="{12bade05-da6f-4709-92e0-138c674938c3}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_SafetyBase EXTENDS KOSTAL_AF2024_Core_Station.FB_Station_Free IMPLEMENTS I_Safety
+VAR
+	_inHold				: BOOL;
+	_isSafe				: BOOL;
+	_doorLock			: BOOL;
+	_isDoorUsed			: BOOL:= TRUE;
+	_isDoorSafe			: BOOL;
+	_manual				: BOOL;
+	_tempIsSafe			: BOOL;
+	_logMessageStart	: BOOL;
+	(* Hmi *)
+	_Hmi_station		: KOSTAL_AF2024_HMI_WinHMI.FB_Page_Station;
+	_E_Text				: T_E_text_Safety;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{88030c51-4729-4a31-8c0f-dd20f061485c}" />
+    <Folder Name="Property " Id="{191e8cbf-d21b-4a8a-ba34-ee36284c8b26}" />
+    <Method Name="_handleSafety" Id="{7df14ae7-5b1f-4cd5-b48f-db327fe3265c}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT  _handleSafety 
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_hmiDefine" Id="{69d24df7-3eb4-424b-a243-8f202c54ed24}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _hmiDefine
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Hmi_station.Name:= _Name;
+
+_Hmi_station.Text.line_01:= _condition.Message.line_01;
+_Hmi_station.Text.line_02:= _condition.Message.line_02;
+_Hmi_station.Text.line_03:= _condition.Message.line_03;
+
+_Hmi_station.Button_Escape.Visible:= (_condition.isError() OR _Hmi_station.Button_Escape.Sign) AND _manual;
+_Hmi_station.Button_Escape.Text:= _Text.GetText(Number:= _E_Text.reset);
+
+_Hmi_station.Status.CopyFrom(IN:= _condition);
+
+_Hmi_station.FBmain();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_logStart" Id="{c42151e0-164b-412f-854c-fc50caf71b9d}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _logStart
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _logMessageStart AND _Text.State.ready AND (_Text.LoadedLanguage <> '') THEN
+	IF _log("===START===") THEN
+		_logMessageStart:= FALSE;
+	END_IF
+	
+	IF _tempIsSafe THEN 
+		_log(Text:= _Text.GetText(Number:= _E_Text.safetyOk));
+	ELSE
+		_log(Text:= _Text.GetText(Number:= _E_Text.safetyNok));
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_resetCondition" Id="{dc02b2bc-ebda-4b19-986d-a81c01eaa0a1}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _resetCondition 
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _condition.isError() THEN
+	IF _Hmi_station.Button_Escape.Pulse THEN
+		_condition.clear();
+	END_IF
+ELSE
+	_condition.clear();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="doorLock" Id="{13d368e7-a983-479d-8fd8-068a0b9cd829}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY PUBLIC doorLock : BOOL]]></Declaration>
+      <Get Name="Get" Id="{c2cf3276-0dc2-4f67-a108-8d35332db5da}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[doorLock:= _doorLock;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{8a1e11fb-2f91-422e-992c-2d258eae0145}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_doorLock:= doorLock;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <Method Name="FB_init" Id="{cce0d010-45e2-493d-bc29-dd2af3806d59}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains : BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode : BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	ID_Name			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	ID_Key			: DINT;
+	CommonText		: KOSTAL_AF2024_Core_Text.I_Text;
+	textPath		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextPath:= textPath;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FBmain" Id="{645b2cb8-bff5-46c3-a477-544e29134ee7}">
+      <Declaration><![CDATA[METHOD PUBLIC FBmain
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT _parameterControl() THEN RETURN; END_IF
+ 
+_hmiDefine();
+
+IF NOT _TextReader() THEN RETURN; END_IF;
+
+_logStart();
+_handleSafety();
+_resetCondition();
+_tempIsSafe:= NOT _condition.isError();
+
+(* Log if safety state changed *)
+IF _isSafe <> _tempIsSafe THEN
+	IF _tempIsSafe THEN			
+		_log(_Text.GetText(_E_text.safetyOk));
+	ELSE							
+		_log(_condition.Message.toString());				
+	END_IF
+END_IF
+
+_isSafe:= _tempIsSafe;
+
+IF _isSafe THEN	
+	_message.clear();
+	_message.line_01:= _Text.GetText(Number:= _E_text.safetyOk);
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Info, 
+		message	:= _message);
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="inHold" Id="{065ef20f-1211-4cda-8bf0-49df9f2a4ee3}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY inHold : BOOL]]></Declaration>
+      <Get Name="Get" Id="{ef0b982d-eb5a-4b3c-98cf-51a6d9eedc91}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[inHold:= _inHold;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="isDoorSafe" Id="{affcff9d-fdf9-401a-a228-18a0aa9f5bde}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY isDoorSafe : BOOL]]></Declaration>
+      <Get Name="Get" Id="{019d570a-26b2-4997-aaf6-e20e0b755092}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[isDoorSafe:= _isDoorSafe;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="isDoorUsed" Id="{f4a7b5c6-afda-44ea-b144-5ddaf3f8d41e}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY isDoorUsed : BOOL]]></Declaration>
+      <Get Name="Get" Id="{00e5b138-8de1-4d6b-bd72-a7d652478473}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[isDoorUsed:= _isDoorUsed;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="isSafe" Id="{3f10ae2f-4e65-4f5c-87a0-25babdfe5316}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY isSafe : BOOL]]></Declaration>
+      <Get Name="Get" Id="{e29e2e6a-ff3d-4f43-a02d-ebc20e949737}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[isSafe:= _isSafe;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="manual" Id="{75062206-38e6-47ac-bef8-a7289ba56dc5}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY PUBLIC manual : BOOL]]></Declaration>
+      <Get Name="Get" Id="{3c2d1efa-d8d4-4ac6-8216-7dd081e0a000}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[manual := _manual;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{67cb55cf-5fe0-477e-bafe-ea4c2c012881}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_manual:= manual;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <LineIds Name="FB_SafetyBase">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase._handleSafety">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase._hmiDefine">
+      <LineId Id="6" Count="10" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase._logStart">
+      <LineId Id="6" Count="9" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase._resetCondition">
+      <LineId Id="6" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.doorLock.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.doorLock.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.FB_init">
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.FBmain">
+      <LineId Id="6" Count="27" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="37" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.inHold.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.isDoorSafe.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.isDoorUsed.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.isSafe.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.manual.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SafetyBase.manual.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

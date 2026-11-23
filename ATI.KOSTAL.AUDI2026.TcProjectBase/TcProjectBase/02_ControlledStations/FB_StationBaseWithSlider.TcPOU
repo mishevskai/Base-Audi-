@@ -1,0 +1,1459 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_StationBaseWithSlider" Id="{0f433787-f3ac-40a7-85a0-2f481d56cd5f}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_StationBaseWithSlider EXTENDS FB_StationBase
+VAR
+	(* General *)
+	_IparametersCommon						: I_Parameters_MainControl;
+	(* Slider Lock Cylinder *)    	
+	_SliderLockCylinderInFrontPosition		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.FB_Cylinder_Controlled;	
+
+	DI_SliderInFrontPos						AT %I* : BOOL;
+	DI_SliderInBackPos						AT %I* : BOOL;
+	DI_SliderLockCylInFrontPosWP			AT %I* : BOOL;
+	DI_SliderLockCylInFrontPosHP			AT %I* : BOOL;
+	DO_SliderLockCylInFrontPosHP			AT %Q* : BOOL;
+	DO_SliderLockCylInFrontPosWP			AT %Q* : BOOL;	  
+	
+	(* Sensors *)
+	_sliderInFrontPositionName 	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	_sliderInBackPositionName 	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	(* Process *)
+	_timerSliderInFrontPos		: Tc2_Standard.TON;
+	_timerSliderInBackPos		: Tc2_Standard.TON;
+	
+	(* Axis *)
+//	_Axis						: KOSTAL_TC3_Device_Axis_FESTO_CMMT_AS_ETC.FB_FESTO_CMMT_AS;
+	_isHomeDone					: BOOL;
+//	_AxisName					: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Property " Id="{d3e74a12-4d5c-4acc-9397-eeab62b290fc}" />
+    <Folder Name="Steps" Id="{f9ad1d7a-39e5-4e2b-9494-876b35b63626}" />
+    <Folder Name="System" Id="{302f85c3-3d00-4080-97df-bda87de170d0}" />
+    <Method Name="_a2_X_CloseSlider" Id="{6142f424-5f03-4466-8dac-aee25218b62d}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD _a2_X_CloseSlider
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_timerSliderInBackPos(IN:= FALSE);
+	_stepDescription:= "CloseSlider";
+END_IF
+
+(* If slider in back position skip this step *)
+IF _SubStep.isActive(0) THEN 
+	_timerSliderInBackPos(IN:= FALSE);
+	_addressRestart:= _SubStep.actual;
+	IF DI_SliderInBackPos THEN 
+		_SubStep.set(request:= 3);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF 
+
+(* Unlock *)
+IF _SubStep.isActive(1) THEN 
+	IF _SliderLockCylinderInFrontPosition.moveTo_B() THEN 
+		_SubStep.INC();
+	ELSIF _SliderLockCylinderInFrontPosition.Error.active THEN 
+		_addressRestart:= _SubStep.actual;
+		_getCylinderErrorTexts(Cylinder:= _SliderLockCylinderInFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_updateHmiTextWithCylinderTextMoveToHP(Cylinder:= _SliderLockCylinderInFrontPosition);
+	END_IF
+END_IF
+
+(* Wait sluder in back position *)
+IF _SubStep.isActive(2) THEN 
+	_timerSliderInBackPos(
+		IN 	:= DI_SliderInBackPos,
+		PT	:= T#150MS);
+	IF NOT DI_SliderInBackPos THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= _sliderInBackPositionName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.waitSliderInBackPosition),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.waitForSensor_0),
+			isErrorMessage	:= FALSE);
+	ELSIF _timerSliderInBackPos.Q THEN 
+		_SubStep.INC();
+	END_IF
+END_IF 
+
+(* Lock slider in back position *)
+IF _SubStep.isActive(3) THEN
+	DO_SliderLockCylInFrontPosWP:= FALSE; 
+	IF  _SliderLockCylinderInFrontPosition.moveTo_A()   THEN
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF _SliderLockCylinderInFrontPosition.Error.active THEN
+		_getCylinderErrorTexts(Cylinder:= _SliderLockCylinderInFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE
+		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= _SliderLockCylinderInFrontPosition);
+	END_IF
+END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _ADDRESS_RUNOUT); //?
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_HomeAxes" Id="{a1dcbf50-d9cd-4c1e-b705-c19b6d37f89c}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_HomeAxes
+VAR_INPUT
+	axis1			: REFERENCE TO  KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName1		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	axis2			: REFERENCE TO  KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName2		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[ IF _step.toggle THEN 
+	_stepDescription:= "HomeAxis";
+END_IF
+
+(* Home axis Left*)
+IF _SubStep.isActive(0) THEN 
+	 IF NOT axis1.Ex_Homing() THEN
+		 _updateHmiTextWithAxisBusy(axisName:= axisName1);		 
+	ELSIF NOT axis1.State.finish OR axis1.State.busy THEN 
+		 _updateHmiTextWithAxisBusy(axisName:= axisName1);
+	ELSIF NOT axis1.State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_getAxisErrorTexts(name			:= axisName1,
+						   description	:= axis1.State.description); 
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_subStep.INC();
+	END_IF			
+END_IF
+
+(* Home axis Right*)
+IF _SubStep.isActive(1) THEN 
+	 IF NOT axis2.Ex_Homing() THEN
+		 _updateHmiTextWithAxisBusy(axisName:= axisName2);		 
+	ELSIF NOT axis2.State.finish OR axis2.State.busy THEN 
+		 _updateHmiTextWithAxisBusy(axisName:= axisName2);
+	ELSIF NOT axis2.State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_getAxisErrorTexts(name			:= axisName2,
+						   description	:= axis2.State.description); 
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_subStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF			
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_Step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _SubStep.actual-1);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_HomeAxis" Id="{6071f2b7-6876-4cdb-9b9a-ec79dba35fb2}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_HomeAxis
+VAR_INPUT
+	axis			: REFERENCE TO  KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "HomeAxis";
+END_IF
+(* Is Axis X Home? *) 
+IF _SubStep.isActive(0) THEN 
+	IF _isHomeDone AND axis.AxisPositionAct = axis.HomingPosition THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Home axis Left*)
+IF _SubStep.isActive(1) THEN 
+	 IF NOT axis.Ex_Homing() THEN
+		 _updateHmiTextWithAxisBusy(axisName:= axisName);		 
+	ELSIF NOT axis.State.finish OR axis.State.busy THEN 
+		 _updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_getAxisErrorTexts(name			:= axisName,
+						   description	:= axis.State.description); 
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS); 
+	END_IF			
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_Step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _SubStep.actual-1);
+END_IF
+
+_step.Control();
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_HomeAxisTC3" Id="{abe61657-a8f4-4418-af65-a4f0bc26b311}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_HomeAxisTC3
+VAR_INPUT
+	axis		: I_LinearAxis_position;
+	axisName	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "HomeAxis";
+END_IF
+
+//(* Is Axis X Home? *) 
+//IF _SubStep.isActive(0) THEN 
+//	IF _isHomeDone AND axis.IlinearAxis_PositionAct = axis.IlinearAxis_HomingPosition THEN 
+//		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+//	ELSE 
+//		_SubStep.INC();
+//	END_IF
+//END_IF
+
+(* Home Axis X *)
+ IF _SubStep.isActive(0) THEN 
+	 axis.IlinearAxis_Homing();
+	 IF NOT axis.IlinearAxis_State.finish THEN 
+		 _updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.IlinearAxis_State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_getAxisErrorTexts(
+			name		:= axisName,
+			description	:= STRING_TO_WSTRING(axis.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_subStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF		
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_isHomeDone:= TRUE;
+	_Step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _SubStep.actual-1);
+END_IF
+
+_step.Control();
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_InitAxes" Id="{ee4ea357-9c1d-48a2-bfec-5e75c9f8352b}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_InitAxes
+VAR_INPUT
+	axis1			: REFERENCE TO KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName1		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	axis2			: REFERENCE TO KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName2		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(* Reset Axis Left *)
+IF _SubStep.isActive(0) THEN 
+	_addressRestart:= _SubStep.actual;
+	IF axis1.Fault THEN 
+	axis1.ResetFault();
+		IF NOT axis1.AxisError THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName1); 
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Enable Axis Left *)
+IF _SubStep.isActive(1) THEN 
+	axis1.Ex_On();
+	IF NOT axis1.State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName1);
+	ELSIF NOT axis1.State.pass THEN 
+		_subStepError:= "Left axis in error";
+		_subStepMessage:= axis1.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF axis1.AxisIsOn THEN 
+		_SubStep.INC();
+	ELSE 
+		_updateHmiTextWithAxisBusy(axisName:= axisName1);
+	END_IF
+END_IF
+
+(* Release Left Axis *)
+IF _SubStep.isActive(2) THEN 
+	axis1.Enable:= TRUE;
+	IF NOT axis1.State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName1);
+	ELSIF NOT axis1.State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_subStepError:= "Left axis in error";;
+		_subStepMessage:= axis1.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Reset Axis Right *)
+IF _SubStep.isActive(3) THEN 
+	IF axis2.Fault THEN 
+	axis2.ResetFault();
+		IF NOT axis2.AxisError THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName2); 
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Enable Axis Right *)
+IF _SubStep.isActive(4) THEN 
+	axis2.Ex_On();
+	IF NOT axis2.State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName2);
+	ELSIF NOT axis2.State.pass THEN 
+		_subStepError:= "Right axis in error";
+		_subStepMessage:= axis2.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF axis2.AxisIsOn THEN 
+		_SubStep.INC();
+	ELSE 
+		_updateHmiTextWithAxisBusy(axisName:= axisName2);
+	END_IF
+END_IF
+
+(* Release Axis Right *)
+IF _SubStep.isActive(5) THEN 
+	axis2.Enable:= TRUE;
+	IF NOT axis2.State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName2);
+	ELSIF NOT axis2.State.pass THEN 
+		_subStepError:= "Right axis in error";;
+		_subStepMessage:= axis2.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_InitAxesToStartProcess" Id="{ec90259c-b8fe-40f2-8b94-bb8ad9a1f3bd}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_InitAxesToStartProcess
+VAR_INPUT
+	axis1			: REFERENCE TO KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName1		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	axis2			: REFERENCE TO KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName2		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(* Reset Axis Left *)
+IF _SubStep.isActive(0) THEN 
+	IF axis1.Fault THEN 
+	axis1.ResetFault();
+		IF NOT axis1.Fault THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName1);
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Reset Axis Right *)
+IF _SubStep.isActive(1) THEN 
+	IF axis2.Fault THEN 
+	axis2.ResetFault();
+		IF NOT axis2.Fault THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName2);
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Enable Axis  Left And Right *)
+IF _SubStep.isActive(2) THEN 
+	IF axis1.AxisIsOn AND axis2.AxisIsOn THEN 
+		_SubStep.INC();
+	ELSE 
+		axis1.Ex_On();
+		axis2.Ex_On();
+		IF NOT axis1.State.finish THEN 
+			_updateHmiTextWithAxisBusy(axisName:= axisName1);
+		ELSIF NOT axis2.State.finish THEN 
+			_updateHmiTextWithAxisBusy(axisName:= axisName2);
+		ELSIF NOT axis1.State.pass THEN 
+			_addressRestart:= _SubStep.actual;
+			_getAxisErrorTexts(
+				name		:= axisName1,
+				description	:= axis1.State.description);
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+		ELSIF NOT axis2.State.pass THEN 
+			_addressRestart:= _SubStep.actual;
+			_getAxisErrorTexts(
+				name		:= axisName2,
+				description	:= axis1.State.description);
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= "Both");
+		END_IF
+	END_IF
+END_IF 
+
+(* Release Axes *)
+IF _SubStep.isActive(3) THEN 
+	axis1.Enable:= TRUE; 
+	axis2.Enable:= TRUE; 
+	_SubStep.set(request:= _SUB_ADDRESS_PASS);
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_InitAxis" Id="{43a9e895-0957-44cd-831c-a11060b998ee}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_InitAxis
+VAR_INPUT
+	axis			: REFERENCE TO  KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(* Reset Axis X *)
+IF _SubStep.isActive(0) THEN 
+	IF axis.Fault THEN 
+	axis.ResetFault();
+		IF NOT axis.Fault THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Enable Axis *)
+IF _SubStep.isActive(1) THEN 
+	axis.Ex_On();
+	IF NOT axis.State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_subStepError:= " Axis in error";;
+		_subStepMessage:= axis.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF axis.AxisIsOn THEN 
+		_SubStep.INC();
+	ELSE 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	END_IF
+END_IF
+
+(* Release Axis *)
+IF _SubStep.isActive(2) THEN 
+	axis.Enable:= TRUE;
+	IF NOT axis.State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_subStepError:= "Right axis in errot";;
+		_subStepMessage:= axis.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_InitAxisTC3" Id="{0d9e0fc3-68c0-44b4-bb65-58298adb82ab}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_InitAxisTC3
+VAR_INPUT
+	axis		: I_LinearAxis_position;
+	axisName	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "InitAxis";
+END_IF
+
+(* Reset Axis X *)
+IF _SubStep.isActive(0) THEN 
+	IF axis.IlinearAxis_Fault THEN 
+		axis.IlinearAxis_ResetFault();
+		IF NOT axis.IlinearAxis_Fault THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Enable Axis *)
+IF _SubStep.isActive(1) THEN 
+	axis.IlinearAxis_On();
+	IF NOT axis.IlinearAxis_State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.IlinearAxis_State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_getAxisErrorTexts(
+			name		:= axisName,
+			description	:= STRING_TO_WSTRING(axis.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF axis.IlinearAxis_isOn THEN 
+		_SubStep.INC();
+	ELSE 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	END_IF
+END_IF
+
+(* Release Axis *)
+IF _SubStep.isActive(2) THEN 
+	axis.IlinearAxis_Release(release:= TRUE);
+	IF NOT axis.IlinearAxis_State.finish THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.IlinearAxis_State.pass THEN 
+		_addressRestart:= _SubStep.actual;
+		_getAxisErrorTexts(
+			name 			:= axisName,
+			description		:= STRING_TO_WSTRING(axis.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_InitAxisToStartProcess" Id="{36cef6b5-030d-461c-9c87-5a5b073c78b8}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_InitAxisToStartProcess
+VAR_INPUT
+	axis			: REFERENCE TO  KOSTAL_AF2024_Drivers_Actuation_Axis_Festo_CMMT_AS.FB_FESTO_CMMT_AS;
+	axisName		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(* Reset Axis Left *)
+IF _SubStep.isActive(0) THEN 
+	IF axis.Fault THEN 
+	axis.ResetFault();
+		IF NOT axis.Fault THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Enable Axis Z *)
+IF _SubStep.isActive(1) THEN 
+	IF axis.AxisIsOn  THEN 
+		_SubStep.INC();
+	ELSE 
+		axis.Ex_On();
+		IF NOT axis.State.finish THEN 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		ELSIF NOT axis.State.pass THEN 
+			_addressRestart:= _SubStep.actual;
+			_getAxisErrorTexts(
+				name		:= axisName,
+				description	:= axis.State.description);
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		END_IF
+	END_IF
+END_IF 
+
+(* Release Axes *)
+IF _SubStep.isActive(2) THEN 
+	axis.Enable:= TRUE; 
+	_SubStep.set(request:= _SUB_ADDRESS_PASS);
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_InitAxisToStartProcessTC3" Id="{ff87d3f6-1d23-4cce-b89b-90232a5e1463}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_InitAxisToStartProcessTC3
+VAR_INPUT
+	axis		: I_LinearAxis_position;
+	axisName	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "InitAxisToStartProcess";
+END_IF
+
+(* Reset Axis X *)
+IF _SubStep.isActive(0) THEN 
+	IF axis.IlinearAxis_Fault THEN 
+		axis.IlinearAxis_ResetFault();
+		IF NOT axis.IlinearAxis_Fault THEN 
+			_SubStep.INC();
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		END_IF
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Enable Axis *)
+IF _SubStep.isActive(1) THEN 
+	IF axis.IlinearAxis_isOn THEN 
+		_SubStep.INC();
+	ELSE 
+		axis.IlinearAxis_On();
+		IF NOT axis.IlinearAxis_State.finish THEN 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		ELSIF NOT axis.IlinearAxis_State.pass THEN 
+			_addressRestart:= _SubStep.actual;
+			_getAxisErrorTexts(
+				name		:= axisName,
+				description	:= STRING_TO_WSTRING(axis.IlinearAxis_State.description));
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+		ELSE 
+			_updateHmiTextWithAxisBusy(axisName:= axisName);
+		END_IF
+	END_IF
+END_IF 
+
+(* Release Axis *)
+IF _SubStep.isActive(2) THEN 
+	axis.IlinearAxis_Release(release:= TRUE);
+	_SubStep.set(request:= _SUB_ADDRESS_PASS);
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries		:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress			:= _addressRestart,
+		abortAddress			:=	_step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_MoveAxesTogether" Id="{87d536c1-e03e-4f27-a37e-34811a819202}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_MoveAxesTogether
+VAR_INPUT
+	axisLeft				: I_Axis;
+	axisRight				: I_Axis;
+	leftAxisName			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	rightAxisName			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	targetPositionLeftAxis	: REAL;
+	targetPositionRightAxis	: REAL;
+	axisVelocity 			: REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "MoveAxis";
+END_IF
+
+(* Check actual and target position *)
+IF _SubStep.isActive(0) THEN 
+	IF _checkIfSamePosition(axisLeft.AxisPositionAct, targetPositionLeftAxis) AND _checkIfSamePosition(axisRight.AxisPositionAct, targetPositionRightAxis) THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSE 
+		axisLeft.TargetVelocity:= axisVelocity;
+		axisLeft.Jerk:= 0;
+		axisRight.TargetVelocity:= axisVelocity;
+		axisRight.Jerk:= 0;
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Move to target position *)
+IF _SubStep.isActive(1) THEN 
+	_addressRestart:= _SubStep.actual;
+	axisLeft.Ex_MoveToPosition(position:= targetPositionLeftAxis);
+	axisRight.Ex_MoveToPosition(position:= targetPositionRightAxis);
+	IF axisLeft.AxisError THEN 
+		_subStepError:= leftAxisName;  
+		_subStepMessage:= axisLeft.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF axisRight.AxisError THEN 
+		_subStepError:= rightAxisName;
+		_subStepMessage:= axisRight.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF NOT axisLeft.State.finish OR axisLeft.State.busy THEN 
+		_updateHmiTextWithAxisBusy(axisName:= leftAxisName);
+	ELSIF NOT axisRight.State.finish  THEN 
+		_updateHmiTextWithAxisBusy(axisName:= rightAxisName);
+	ELSIF NOT axisLeft.State.pass THEN 
+		_subStepError:= leftAxisName;
+		_subStepMessage:= axisLeft.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF NOT axisRight.State.pass THEN 
+		_subStepError:= rightAxisName;
+		_subStepMessage:= axisLeft.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries		:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress			:= _addressRestart,
+		abortAddress			:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_MoveAxesTogetherTC3" Id="{e6c51020-c1e6-448a-8ef3-2ae8a96c10e5}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_MoveAxesTogetherTC3 
+VAR_INPUT
+	axisLeft				: I_LinearAxis_position;
+	axisRight				: I_LinearAxis_position;
+	axisName				: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	targetPositionLeftAxis	: REAL;
+	targetPositionRightAxis	: REAL;
+	axisVelocity 			: REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "MoveAxis";
+END_IF
+
+(* Check actual and target position *)
+IF _SubStep.isActive(0) THEN 
+	IF _checkIfSamePosition(axisLeft.IlinearAxis_PositionAct, targetPositionLeftAxis) AND _checkIfSamePosition(axisRight.IlinearAxis_PositionAct, targetPositionRightAxis) THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSE 
+		axisLeft.IlinearAxis_Speed:= axisVelocity;
+		axisLeft.IlinearAxis_Jerk:= 0;
+		axisRight.IlinearAxis_Speed:= axisVelocity;
+		axisRight.IlinearAxis_Jerk:= 0;
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Move to target position *)
+IF _SubStep.isActive(1) THEN 
+	_addressRestart:= _SubStep.actual;
+	axisLeft.IlinearAxis_MoveToPosition(position:= targetPositionLeftAxis);
+	axisRight.IlinearAxis_MoveToPosition(position:= targetPositionRightAxis);
+	IF axisLeft.IlinearAxis_Fault THEN 
+		_getAxisErrorTexts(
+			name		:= "AxisZ-left",
+			description	:= STRING_TO_WSTRING(axisLeft.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF axisRight.IlinearAxis_Fault THEN 
+		_getAxisErrorTexts(
+			name		:= "AxisZ-right",
+			description	:= STRING_TO_WSTRING(axisLeft.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF NOT axisLeft.IlinearAxis_State.finish OR axisLeft.IlinearAxis_State.busy THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axisRight.IlinearAxis_State.finish OR axisRight.IlinearAxis_State.busy THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axisLeft.IlinearAxis_State.pass THEN 
+		_getAxisErrorTexts(
+			name		:= "AxisZ-left",
+			description	:= STRING_TO_WSTRING(axisLeft.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF NOT axisRight.IlinearAxis_State.pass THEN 
+		_getAxisErrorTexts(
+			name		:= "AxisZ-right",
+			description	:= STRING_TO_WSTRING(axisRight.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries		:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress			:= _addressRestart,
+		abortAddress			:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_MoveAxisToPosition" Id="{96830b4e-5620-4a1d-908b-a17b82cb889a}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_MoveAxisToPosition
+VAR_INPUT
+	axis				: I_Axis;
+	axisName			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	targetPosition		: REAL;
+	axisVelocity 		: REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "MoveAxis";
+END_IF
+
+(* Check actual and target position *)
+IF _SubStep.isActive(0) THEN 
+	IF _checkIfSamePosition(actualPosition:= axis.PositionAct, targetPosition:= targetPosition) THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSE 
+		axis.TargetVelocity:= axisVelocity;
+		axis.Jerk:= 0;
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Move to target position *)
+IF _SubStep.isActive(1) THEN 
+	_addressRestart:= _SubStep.actual;
+	axis.Ex_MoveToPosition(position:= targetPosition);
+	IF axis.AxisError THEN 
+		_subStepError:=axisName;
+		_subStepMessage:= axis.State.description;
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF NOT axis.State.finish OR axis.State.busy THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.State.pass THEN 
+		_subStepError:=axisName;
+		_subStepMessage:= axis.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries		:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress			:= _addressRestart,
+		abortAddress			:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_MoveAxisToPositionTC3" Id="{5a57304c-41ec-4d1b-a8a2-849bbe9baec3}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_MoveAxisToPositionTC3 
+VAR_INPUT
+	axis				: I_LinearAxis_position;
+
+	
+	axisName			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	targetPosition		: REAL;
+	axisVelocity 		: REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "MoveAxis";
+END_IF
+
+(* Check actual and target position *)
+IF _SubStep.isActive(0) THEN 
+	IF _checkIfSamePosition(actualPosition:= axis.IlinearAxis_PositionAct, targetPosition:= targetPosition) THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSE 
+		axis.IlinearAxis_Speed:= axisVelocity;
+		axis.IlinearAxis_Jerk:= 0;
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Move to target position *)
+IF _SubStep.isActive(1) THEN 
+	_addressRestart:= _SubStep.actual;
+	axis.IlinearAxis_MoveToPosition(position:= targetPosition);
+	IF axis.IlinearAxis_Fault THEN 
+		_getAxisErrorTexts(
+			name		:= axisName,
+			description	:= STRING_TO_WSTRING(axis.IlinearAxis_State.description));
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF NOT axis.IlinearAxis_State.finish OR axis.IlinearAxis_State.busy THEN 
+		_updateHmiTextWithAxisBusy(axisName:= axisName);
+	ELSIF NOT axis.IlinearAxis_State.pass THEN 
+		_getAxisErrorTexts(
+			name		:= axisName,
+			description	:= STRING_TO_WSTRING(axis.IlinearAxis_State.description));
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	_step.Condition:= TRUE;
+END_IF
+
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN 
+	_retryAbort(
+		numOfTargetRetries		:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress			:= _addressRestart,
+		abortAddress			:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_OpenSlider" Id="{0b11cb07-7739-4e1f-a8d9-e1e91cb7c6ed}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_OpenSlider
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_timerSliderInFrontPos(IN:= FALSE);
+	_stepDescription:= "OpenSlider";
+END_IF
+
+(* If slider in front position skip this step *)
+IF _SubStep.isActive(0) THEN
+	_timerSliderInFrontPos(IN:= FALSE);
+	_addressRestart:= _SubStep.actual;
+	IF DI_SliderInFrontPos THEN
+		_SubStep.set(request:= 3);
+	ELSE
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Unlock *)
+IF _SubStep.isActive(1) THEN
+	IF _SliderLockCylinderInFrontPosition.moveTo_B() THEN
+		_SubStep.INC();
+	ELSIF _SliderLockCylinderInFrontPosition.Error.active THEN
+		_addressRestart:= _SubStep.actual;
+		_getCylinderErrorTexts(Cylinder:= _SliderLockCylinderInFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE
+		_updateHmiTextWithCylinderTextMoveToHP(Cylinder:= _SliderLockCylinderInFrontPosition);
+	END_IF
+END_IF
+(* Wait slider in back position *)
+IF _SubStep.isActive(2) THEN
+	_timerSliderInFrontPos(
+		IN:= DI_SliderInFrontPos,
+		PT:= T#500MS);
+	IF NOT DI_SliderInFrontPos THEN
+		_Text.ClearVars();
+		_Text.AddVar(Text:= _sliderInFrontPositionName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.waitSliderInFrontPosition),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.waitForSensor_0),
+			isErrorMessage	:= FALSE);
+	ELSIF _timerSliderInFrontPos.Q THEN
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.waitSliderInFrontPosition),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.waitForSensor_0),
+			isErrorMessage	:= FALSE);
+	ELSE 
+		_SubStep.INC();	
+	END_IF
+END_IF
+(* Lock slider in front position *)
+IF _SubStep.isActive(3) THEN
+	
+	IF _SliderLockCylinderInFrontPosition.moveTo_A() THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF _SliderLockCylinderInFrontPosition.Error.active THEN
+		_getCylinderErrorTexts(Cylinder:= _SliderLockCylinderInFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE
+		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= _SliderLockCylinderInFrontPosition);
+	END_IF
+END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _ADDRESS_RUNOUT); 
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_checkIfSamePosition" Id="{fc865efb-7e0e-4b46-a6de-24b284a93545}" FolderPath="System\">
+      <Declaration><![CDATA[METHOD PROTECTED _checkIfSamePosition : BOOL
+VAR_INPUT
+	actualPosition 			: LREAL;
+	targetPosition			: LREAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (actualPosition >= (targetPosition - 1)) AND (actualPosition <= (targetPosition + 1)) THEN 
+	_checkIfSamePosition:= TRUE;
+ELSE 
+	_checkIfSamePosition:= FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="sliderInBackPositionName" Id="{bbcbd619-7bd1-4e75-8d2e-f2da3ad54351}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY sliderInBackPositionName : KOSTAL_AF2024_Core_Settings.T_MaxString]]></Declaration>
+      <Get Name="Get" Id="{2adcf394-0e91-45a3-a462-cb342c52e7a3}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[sliderInBackPositionName:= _sliderInBackPositionName;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{ce6b4756-3eaf-4ec8-99c1-17e03126a864}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_sliderInBackPositionName:= sliderInBackPositionName;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <Property Name="sliderInFrontPositionName" Id="{bc9d217c-6834-45fc-9cff-9216115dd4a8}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY sliderInFrontPositionName : KOSTAL_AF2024_Core_Settings.T_MaxString]]></Declaration>
+      <Get Name="Get" Id="{eecd8b3f-e64a-4f8f-aef1-015e9eda2b2d}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[sliderInFrontPositionName:= _sliderInFrontPositionName;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{b14648a9-9f6a-413b-8c8a-f00fbe7147f4}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_sliderInFrontPositionName:= sliderInFrontPositionName;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <LineIds Name="FB_StationBaseWithSlider">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_CloseSlider">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="83" Count="1" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="5" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="36" Count="1" />
+      <LineId Id="39" Count="5" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="53" Count="2" />
+      <LineId Id="57" Count="17" />
+      <LineId Id="50" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_HomeAxes">
+      <LineId Id="40" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="7" Count="5" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="17" Count="5" />
+      <LineId Id="45" Count="14" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="23" Count="2" />
+      <LineId Id="27" Count="10" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_HomeAxis">
+      <LineId Id="11" Count="1" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="153" Count="6" />
+      <LineId Id="99" Count="15" />
+      <LineId Id="131" Count="11" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_HomeAxisTC3">
+      <LineId Id="5" Count="2" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="5" />
+      <LineId Id="55" Count="2" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="65" Count="1" />
+      <LineId Id="68" Count="2" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="75" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_InitAxes">
+      <LineId Id="465" Count="1" />
+      <LineId Id="569" Count="0" />
+      <LineId Id="467" Count="17" />
+      <LineId Id="486" Count="43" />
+      <LineId Id="531" Count="15" />
+      <LineId Id="548" Count="19" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_InitAxesToStartProcess">
+      <LineId Id="6" Count="12" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="109" Count="11" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="83" Count="5" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="123" Count="1" />
+      <LineId Id="91" Count="4" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="126" Count="3" />
+      <LineId Id="96" Count="9" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="52" Count="14" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_InitAxis">
+      <LineId Id="6" Count="20" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="29" Count="14" />
+      <LineId Id="68" Count="1" />
+      <LineId Id="47" Count="19" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_InitAxisTC3">
+      <LineId Id="5" Count="2" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="28" Count="1" />
+      <LineId Id="31" Count="1" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="37" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="43" Count="9" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="58" Count="1" />
+      <LineId Id="61" Count="5" />
+      <LineId Id="68" Count="1" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="72" Count="2" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="81" Count="2" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="75" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_InitAxisToStartProcess">
+      <LineId Id="6" Count="12" />
+      <LineId Id="83" Count="6" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="91" Count="15" />
+      <LineId Id="52" Count="14" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_InitAxisToStartProcessTC3">
+      <LineId Id="5" Count="2" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="30" Count="6" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="51" Count="2" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="59" Count="2" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="62" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_MoveAxesTogether">
+      <LineId Id="11" Count="59" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_MoveAxesTogetherTC3">
+      <LineId Id="76" Count="8" />
+      <LineId Id="87" Count="1" />
+      <LineId Id="145" Count="1" />
+      <LineId Id="89" Count="7" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="97" Count="4" />
+      <LineId Id="151" Count="3" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="102" Count="1" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="104" Count="3" />
+      <LineId Id="158" Count="4" />
+      <LineId Id="108" Count="18" />
+      <LineId Id="56" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_MoveAxisToPosition">
+      <LineId Id="12" Count="46" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_MoveAxisToPositionTC3">
+      <LineId Id="138" Count="8" />
+      <LineId Id="149" Count="39" />
+      <LineId Id="56" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._a2_X_OpenSlider">
+      <LineId Id="6" Count="6" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="13" Count="29" />
+      <LineId Id="86" Count="3" />
+      <LineId Id="43" Count="1" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="45" Count="3" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="49" Count="2" />
+      <LineId Id="53" Count="17" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider._checkIfSamePosition">
+      <LineId Id="17" Count="3" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider.sliderInBackPositionName.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider.sliderInBackPositionName.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider.sliderInFrontPositionName.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithSlider.sliderInFrontPositionName.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

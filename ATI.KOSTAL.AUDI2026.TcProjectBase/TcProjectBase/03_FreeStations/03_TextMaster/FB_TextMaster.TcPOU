@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_TextMaster" Id="{1abc9488-9a2b-4475-8991-fcd02663b95f}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_TextMaster EXTENDS KOSTAL_AF2024_Templates_TextMaster.FB_TextMaster
+VAR
+	_Hmi_station				: KOSTAL_AF2024_HMI_WinHMI.FB_Page_Station;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{3790c44c-029e-472b-a99c-867dc5036808}" />
+    <Method Name="_linkHmi" Id="{e34ea711-ec98-47c6-9000-1f6e53d75e3b}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _linkHmi
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_iHmi_station := _Hmi_station;
+_Hmi_station.FBmain();
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FB_init" Id="{1a90f725-69c3-4200-963a-4cb1690dd3d2}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains 		: BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode			: BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	ID_Name				: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	ID_Key				: DINT;
+	commonTextPath		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+	textPath			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_pathCommon:= commonTextPath;
+_TextPath:= textPath;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_TextMaster">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_TextMaster._linkHmi">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_TextMaster.FB_init">
+      <LineId Id="12" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

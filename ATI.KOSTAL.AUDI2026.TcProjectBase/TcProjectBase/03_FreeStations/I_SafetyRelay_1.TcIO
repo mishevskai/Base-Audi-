@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_SafetyRelay_1" Id="{1be3e3f9-77e5-4eb1-9303-001e1f4c8386}">
+    <Declaration><![CDATA[INTERFACE I_SafetyRelay_1
+]]></Declaration>
+    <Property Name="safetyRelayInFault" Id="{538d14c8-c431-472e-8ae0-5d48da7f3cef}">
+      <Declaration><![CDATA[PROPERTY safetyRelayInFault : BOOL]]></Declaration>
+      <Get Name="Get" Id="{e19c7ead-4c21-4dda-813f-e77fe8c61248}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

@@ -1,0 +1,926 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_MainControlCell" Id="{1b43558e-160a-4d61-866d-117798fc082e}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MainControlCell EXTENDS KOSTAL_AF2024_Core_MainControl.FB_MainControl IMPLEMENTS I_CustomStationInterface 
+VAR
+(*------------------------------------------------------------------------------------------*)
+	(* General *)
+	_textPath						: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+	_Text							: KOSTAL_AF2024_Core_Text.FB_Handler_Slave;
+	_E_Text							: T_E_text_MainControl;
+	_setLogRequest					: BOOL;
+	_addressHome					: INT;
+	_stepDescription				: WSTRING;
+	_articleAutoSelection			: BOOL;
+	_timerStationsInHome			: Tc2_Standard.TON;
+	_tempText						: WSTRING;
+	_onAbortButton					: Tc2_Standard.R_TRIG;
+//	_pressedAbortButton				: BOOL; 
+(*------------------------------------------------------------------------------------------*)
+	(* Interface *)
+	_IetherCAT						: I_EtherCAT;
+	_IfuseMonitroing				: I_Fuse;
+	_ISafety						: I_Safety; 
+(*------------------------------------------------------------------------------------------*)	 
+	(* Hmi *)
+	_Hmi							: KOSTAL_AF2024_HMI_WinHMI.FB_MainControl;
+	_Hmi_station					: KOSTAL_AF2024_HMI_WinHMI.FB_Page_Station;
+(*------------------------------------------------------------------------------------------*)
+	(* Mode *)
+	_Message						: KOSTAL_AF2024_Core_Process.T_messageText_3_lines;
+	_modeAutomaticRequest			: BOOL:= TRUE;
+	_modeManualRequest				: BOOL;
+	_dataModeRequest				: BOOL;
+(*------------------------------------------------------------------------------------------*)
+	(* Links *)
+	_Ilogger						: KOSTAL_AF2024_Core_FileLogger.I_Logger;
+	_Iparameters					: I_Parameters_MainControl;
+(*------------------------------------------------------------------------------------------*)
+	(* Inputs *)
+//	DI_KeySwitch					AT %I* : BOOL;
+	DI_KeySwitchAutomatic			AT %I* : BOOL; //2 
+	DI_KeySwitchManual				AT %I* : BOOL; //1 
+	DI_CheckPressure_PT1			AT %I* : BOOL;
+	DI_AbortButton				 	AT %I* : BOOL;
+	(* Outputs *)
+	DO_AirSupplyOn					AT %Q* : BOOL;
+	DO_ReleMainValve_V1				AT %Q* : BOOL;
+	DO_ReleMainValve_V2				AT %Q* : BOOL;
+	(* Andon Light *)
+	DO_AndonLightGreenLamp			AT %Q* : BOOL;
+	DO_AndonLightYellowLamp			AT %Q* : BOOL;
+	DO_AndonLightRedLamp			AT %Q* : BOOL;
+(*------------------------------------------------------------------------------------------*)
+END_VAR
+
+VAR CONSTANT
+	_STEP_OFF	: INT:= 0;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{eb7586ff-7d99-40cf-afd7-1e09db5d842f}">
+      <Folder Name="Log" Id="{e174566c-5a2e-4a90-81e9-484cc8988651}" />
+    </Folder>
+    <Folder Name="Property " Id="{c3c0c820-dd5a-45d9-8f2f-dedee0e79cdb}" />
+    <Folder Name="Steps" Id="{dcb348c7-24e5-43bc-8b2c-0e75a98d2353}" />
+    <Method Name="_a0_PowerOff" Id="{adafc191-b4fa-4241-a7a9-b95e6cfad28b}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a0_PowerOff
+VAR
+	_Participant : KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _Step.toggle THEN
+	_Message.clear();
+	_Hmi.clear();
+	_demand.SetUnique_PowerOff();
+//	DO_AirSupplyOn:= FALSE;
+	DO_ReleMainValve_V1:= FALSE;
+	DO_ReleMainValve_V2:= FALSE;
+	_setLogRequest:= TRUE;
+	_stepDescription:= "PowerOff";
+END_IF
+
+// Log
+IF _setLogRequest AND _isLogReady() AND _Text.State.ready AND (_Text.LoadedLanguage <> '') THEN
+	IF _Log("===START===") THEN 
+		_Log(_Text.GetText(Number:= _E_text.off));	
+		_setLogRequest:= FALSE;	
+	END_IF
+END_IF
+
+// Hmi
+_Hmi.Button_OnOff.Visible:= FALSE;
+
+IF NOT _Text.State.ready THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.textHandlerIsNotReady),
+		userAction		:= _Text.State.description,
+		isErrorMessage	:= FALSE);
+ELSIF NOT _Isafety.isSafe THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.safetyInError),
+		userAction		:= "",
+		isErrorMessage	:= FALSE);
+ELSIF NOT _all_PowerOff(_Participant) THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.waitForAllOff),
+		userAction		:= _Participant,
+		isErrorMessage	:= FALSE);
+//ELSIF _isAirPressureOk() THEN
+//	_Text.ClearVars();
+//	_Text.AddVar(Text:= "-1AZ1");
+//	_Text.AddVar(Text:= _Text.GetText(Number:= _E_Text.active));
+//	_updateHmiText(
+//		userMessage		:= _Text.GetText(Number:= _E_Text.systemAirPressure_0_is_1),
+//		userAction		:= "",
+//		isErrorMessage	:= FALSE);
+ELSIF NOT _mode.manual THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.setManualMode),
+		userAction		:= "",
+		isErrorMessage	:= FALSE);
+ELSE
+	_Hmi.Button_OnOff.Visible:= _mode.manual AND NOT _condition.isError();
+	
+	_Text.ClearVars();
+	_Text.AddVar(Text:= _Hmi.Button_OnOff.Text);
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.onWith_0),
+		userAction		:= "",
+		isErrorMessage	:= FALSE);
+
+	IF _modeManualRequest AND _Hmi.Button_OnOff.Pulse AND NOT _condition.isError() THEN
+		_Step.INC();
+	END_IF
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a1_PowerOn" Id="{921c80e8-8765-4cee-a5f9-22d0799136aa}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a1_PowerOn
+VAR
+	_Participant : KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_Hmi.clear();
+	_Message.clear();
+	_demand.SetUnique_PowerOn();
+//	DO_AirSupplyOn:= TRUE;
+	DO_ReleMainValve_V1:= TRUE;
+	DO_ReleMainValve_V2:= TRUE;
+	_log(Text:= _Text.GetText(Number:= _E_Text.powerOn));
+	_stepDescription:= "PowerOn";
+END_IF
+
+_Hmi.Button_OnOff.Text:= _Text.GetText(Number:= _E_Text.waitForPowerOn);
+_Hmi.Button_OnOff.Visible:= TRUE;
+
+//IF NOT _isAirPressureOk() THEN
+//	_Text.ClearVars();
+////	_Text.AddVar(Text:= INT_TO_WSTRING(_Iparameters.airPressureMin));
+////	_Text.AddVar(Text:= INT_TO_WSTRING(AI_AirPressure));
+////	_Text.AddVar(Text:= INT_TO_WSTRING(_Iparameters.airPressureMax));
+//	_updateHmiText(
+//		userMessage		:= _Text.GetText(Number:= _E_Text.waitForAirPressure_0_1_2),
+//		userAction		:= "",
+//		isErrorMessage	:= FALSE);
+IF NOT DI_CheckPressure_PT1 THEN 
+	_updateHmiText(
+		userMessage		:= "Check pressure",//_Text.GetText(Number:= _E_Text.waitForAirPressure_0_1_2),
+		userAction		:= "PT1",
+		isErrorMessage	:= FALSE);
+ELSIF NOT _all_PowerOn(_Participant) THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.waitForAllOn),
+		userAction		:= _Participant,
+		isErrorMessage	:= FALSE);
+ELSIF NOT _mode.automatic THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.setAutomaticMode),
+		userAction		:= "",
+		isErrorMessage	:= FALSE);
+ELSE
+	_step.INC();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_OnToHome" Id="{13541d3e-bd6e-41e2-8adc-6b8483c1178a}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_OnToHome
+VAR
+	_Participant : KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_Hmi.clear();
+	_demand.SetUnique_OnToHome();
+	_log(Text:= _Text.GetText(Number:= _E_Text.onToHomeReleased));
+	_stepDescription:= "OnToHome";
+END_IF
+
+_Hmi.Button_OnOff.Text:= _Text.GetText(Number:= _E_Text.off);
+_Hmi.Button_OnOff.Visible:= TRUE;
+
+IF NOT _all_Home(_Participant) THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.waitFromHome),
+		userAction		:= _Participant,
+		isErrorMessage	:= FALSE);
+ELSE
+	_step.INC();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a3_Home" Id="{c707062f-0494-42f8-9013-6dfde754f8d6}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a3_Home
+VAR
+	_Participant: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_addressHome:= _step.actual;
+	_Message.clear();
+	_Hmi.clear();
+	_demand.SetUnique_Home();
+	_log(Text:= _Text.GetText(Number:= _E_Text.stop));
+	_stepDescription:= "Home";
+END_IF
+
+_Hmi.Button_OnOff.Text:= _Text.GetText(Number:= _E_Text.off);
+_Hmi.Button_OnOff.Visible:= TRUE;
+_Hmi.Button_RunStop.Text:= _Text.GetText(Number:= _E_Text.start);
+_Hmi.Button_RunStop.Visible:= FALSE;
+
+IF NOT _all_Home(_Participant) THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.participantNotReady),
+		userAction		:= _Participant,
+		isErrorMessage	:= FALSE);
+ELSIF _Hmi.Button_RunStop.Pulse OR NOT _enableStopMode THEN
+	_Hmi.Button_RunStop.Visible:= FALSE;
+	_step.INC();
+ELSE
+	_Hmi.Button_RunStop.Visible:= TRUE;
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.stop),
+		userAction		:= _Text.GetText(Number:= _E_Text.readyToStart),
+		isErrorMessage	:= FALSE);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a4_Run" Id="{b93517cb-7779-44fc-a4f2-d7043a87c2b7}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a4_Run
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_Hmi.clear();
+	_demand.SetUnique_Run();
+	_log(Text:= _Text.GetText(Number:= _E_Text.busy));
+	_stepDescription:= "Run";
+END_IF
+
+_Hmi.Button_OnOff.Text:= _Text.GetText(Number:= _E_Text.off);
+_Hmi.Button_OnOff.Visible:= TRUE;
+_Hmi.Button_RunStop.Text:= _Text.GetText(Number:= _E_Text.stop);
+_Hmi.Button_RunStop.Visible:= _enableStopMode;
+
+IF _Hmi.Button_RunStop.Pulse AND _enableStopMode THEN
+	_step.INC();
+//ELSIF NOT _isAirPressureOk() THEN
+//	_updateHmiText(
+//		userMessage		:= "Air pressure out of limits",
+//		userAction		:= "",
+//		isErrorMessage	:= TRUE);
+//	_step.init();	
+//ELSIF (_IetherCAT <> 0) AND_THEN _IetherCAT.inError THEN
+//	_updateHmiText(
+//		userMessage		:= "EtherCAT in fault",
+//		userAction		:= "",
+//		isErrorMessage	:= TRUE);
+//	_step.init();	
+//ELSIF (_IfuseMonitroing <> 0) AND_THEN _IfuseMonitroing.inError THEN
+//	_updateHmiText(
+//		userMessage		:= "Fuse in fault",
+//		userAction		:= "",
+//		isErrorMessage	:= TRUE);
+//	_step.init();	
+ELSE
+	_tempText:= "";
+//	IF (_IArticle <> 0) THEN
+//		IF _IArticle.LoadedArticle.isVariantTypeGen6x THEN
+//			_tempText:= "Selected article: Gen6x";
+//		ELSIF _IArticle.LoadedArticle.isProductTypeGen6 THEN
+//			_tempText:= "Selected article: Gen6";
+//		ELSIF _IArticle.LoadedArticle.isProductTypeGen7 THEN
+//			_tempText:= "Selected article: Gen7";
+//		ELSIF _IArticle.LoadedArticle.isProductTypeVan THEN
+//			_tempText:= "Selected article: Van";
+//		END_IF
+//	END_IF
+
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.run),
+		userAction		:= _tempText,
+		isErrorMessage	:= FALSE);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a5_RunToHome" Id="{994c0f3c-18eb-422b-bf01-0289236a4841}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a5_RunToHome
+VAR
+	_Participant: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_Message.clear();
+	_Hmi.clear();
+	_demand.SetUnique_RunToHome();
+	_log(Text:= _Text.GetText(Number:= _E_Text.lastCycle));
+	_stepDescription:= "RunToHome";
+END_IF
+
+_Hmi.Button_OnOff.Text:= _Text.GetText(Number:= _E_Text.off);
+_Hmi.Button_OnOff.Visible:= TRUE;
+_Hmi.Button_RunStop.Text:= _Text.GetText(Number:= _E_Text.start);
+_Hmi.Button_RunStop.Visible:= TRUE;
+
+IF _Hmi.Button_RunStop.Pulse OR NOT _enableStopMode THEN
+	_step.DEC();
+ELSIF _all_Home(_Participant) THEN
+	_step.set(request:= _addressHome);
+ELSE
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_Text.participantNotReady),
+		userAction		:= _Participant,
+		isErrorMessage	:= FALSE);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_aX_Fail" Id="{6078d50b-16c3-4da7-a023-76a8bf5c89d3}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _aX_Fail
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_demand.clear();
+
+_Message.clear();
+_Text.ClearVars();
+_Text.AddVar(Text:= INT_TO_WSTRING(_Step.actual));
+_Message.line_01:= _Text.GetText(Number:= _E_Text.step_0_doesNotExist);
+_condition.setMessage(
+	priority:= _condition.PriorityLevel_Error + 1000,
+	message:= _Message);
+	
+IF _Step.toggle THEN
+	_Log(Text:= _Message.toString());
+END_IF
+
+_Step.init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_checkIfSamePosition" Id="{9fcd7ffe-62bf-4c56-a840-c8e2b157403f}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _checkIfSamePosition : BOOL
+VAR_INPUT
+	actualPosition 			: LREAL;
+	targetPosotion			: LREAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (actualPosition >= (targetPosotion - 1)) AND (actualPosition <= (targetPosotion + 1)) THEN 
+	_checkIfSamePosition:= TRUE;
+ELSE 
+	_checkIfSamePosition:= FALSE;
+END_IF  ]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_getIdAsString" Id="{d2b5294a-0751-40c3-abfd-2b2a79d705ff}" FolderPath="Private\Log\">
+      <Declaration><![CDATA[METHOD PROTECTED _getIdAsString : KOSTAL_AF2024_Core_Settings.T_MaxString
+VAR
+	_temp 		: KOSTAL_AF2024_Core_StringTools.FB_Concat;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_temp.Clear();
+_temp.addContent(Text:= _ID.name);
+_temp.addContent(Text:= "(");
+_temp.addContent(Text:= DINT_TO_WSTRING(_ID.key));
+_temp.addContent(Text:= ")");
+_getIdAsString:= _temp.getResult();
+_temp.Clear();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_globalError" Id="{bab08bd9-2e49-4d73-bc36-4f7d8befa17e}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _globalError
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_handleAndonLight" Id="{86dbfb91-41b9-4f3e-a7a0-0f144d6877d1}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _handleAndonLight
+VAR
+	_Participant	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT _Isafety.isSafe THEN
+	_timerStationsInHome(IN:= FALSE);
+	DO_AndonLightGreenLamp:= FALSE;
+	DO_AndonLightYellowLamp:= FALSE;
+	DO_AndonLightRedLamp:= TRUE;
+ELSIF _mode.manual THEN
+	_timerStationsInHome(IN:= FALSE);
+	DO_AndonLightGreenLamp:= FALSE;
+	DO_AndonLightYellowLamp:= TRUE;
+	DO_AndonLightRedLamp:= FALSE;
+ELSIF _all_Home(_Participant) THEN
+	_timerStationsInHome(IN:= TRUE, PT:= T#1S);
+	DO_AndonLightYellowLamp:= FALSE;
+	DO_AndonLightRedLamp:= FALSE;
+	IF _timerStationsInHome.Q THEN
+		_timerStationsInHome(IN:= FALSE);
+		DO_AndonLightGreenLamp:= NOT DO_AndonLightGreenLamp;
+	END_IF
+ELSE
+	_timerStationsInHome(IN:= FALSE);
+	DO_AndonLightGreenLamp:= TRUE;
+	DO_AndonLightYellowLamp:= FALSE;
+	DO_AndonLightRedLamp:= FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_hmiDefine" Id="{33b72339-58c2-4b11-acb2-d40954822182}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _hmiDefine
+VAR
+	_Participant: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Hmi.FBmain();
+_Hmi_station.FBmain();
+
+// General
+_Hmi.Name:= "";
+_Hmi.linkMainControl(THIS^);
+
+_Hmi_station.Name:= Tc2_Standard.WCONCAT(
+	STR1:= _Text.GetText(Number:= _E_Text.name),
+	STR2:= " [");
+_Hmi_station.Name:= Tc2_Standard.WCONCAT(
+	STR1:= _Hmi_station.Name,
+	STR2:= STRING_TO_WSTRING(stLibVersion_ATI_KOSTAL_AF2024_AUDI2026_TcProjectBase.sVersion));
+_Hmi_station.Name:= Tc2_Standard.WCONCAT(
+	STR1:= _Hmi_station.Name,
+	STR2:= "]");
+
+// Mode handling
+_mode.manual:= _modeManualRequest;
+_mode.automatic:= _modeAutomaticRequest AND NOT _Isafety.inHold;
+
+// Buttons 
+_Hmi.Button_Parameters.Visible:= (NOT DI_KeySwitchAutomatic AND NOT DI_KeySwitchManual) AND _dataModeRequest;//_mode.automatic
+_Hmi.Button_Article.Visible:= _mode.manual AND _demand.Run; //AND (_Hmi.UserLevel >= KOSTAL_AF2024_HMI_I_Hmi.E_UserLevel.service);
+_Hmi.Button_RunStop.Visible:= _enableStopMode;
+_Hmi.ManualDeviceControl:= _mode.manual AND _demand.Run AND (_Hmi.UserLevel >= KOSTAL_AF2024_HMI_I_Hmi.E_UserLevel.service);
+
+
+_Hmi.Button_Door.Visible:= _ISafety.isDoorUsed;
+IF _Hmi.Button_Door.Pulse THEN
+	_ISafety.doorLock:= NOT _ISafety.doorLock;
+END_IF
+_Hmi.statusDoor_safe:= _ISafety.isDoorSafe;
+
+_Hmi_station.Button_Escape.Visible:= _condition.isError() AND _modeManualRequest;
+_Hmi_station.Button_Escape.Text:= _Text.GetText(Number:= _E_Text.reset);
+
+// Message
+_Hmi_station.Text.line_01:= _condition.Message.line_01;
+_Hmi_station.Text.line_02:= _condition.Message.line_02;
+_Hmi_station.Text.line_03:= _condition.Message.line_03;
+_Hmi_station.Status.CopyFrom(IN:= _condition);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_isLogReady" Id="{9087f7ca-4dff-4bff-8f27-9205c17f05ca}" FolderPath="Private\Log\">
+      <Declaration><![CDATA[METHOD PROTECTED _isLogReady  : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (_Ilogger = 0) THEN RETURN; END_IF
+_isLogReady:= _Ilogger.State.success;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_log" Id="{c81ab37e-4803-4993-bc02-83f4f417eadf}" FolderPath="Private\Log\">
+      <Declaration><![CDATA[METHOD PROTECTED _log : BOOL
+VAR_INPUT
+	Text			  : KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (Text = "") THEN RETURN; END_IF
+IF (_Iparameters <> 0) AND_THEN NOT _Iparameters.isLoggerEnabled THEN RETURN; END_IF
+IF (_Ilogger = 0) THEN RETURN; END_IF
+IF NOT _Ilogger.State.success THEN RETURN; END_IF
+
+_Ilogger.ID:= _getIdAsString();
+_Ilogger.name:= _Text.GetText(Number:= _E_Text.name);
+_Ilogger.stepNumber:= _Step.actual;
+
+_log:= _Ilogger.addLine(line:= Text);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_modeHandler" Id="{76716ec3-92c6-410d-a065-89a64f2a18b1}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD _modeHandler
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_mode.automatic:= (_modeAutomaticRequest OR DI_KeySwitchAutomatic) AND NOT _condition.isError() AND NOT _Isafety.inHold AND NOT _dataModeRequest; 
+_mode.manual:= _modeManualRequest AND NOT _dataModeRequest; ]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_modeRequest" Id="{b2f21a60-e41d-4ab8-95c7-f79a6e74d962}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _modeRequest
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Hmi.Button_Auto.Visible:= TRUE;
+_Hmi.Button_Manual.Visible:= TRUE;
+IF _Hmi.Button_Auto.Pulse OR DI_KeySwitchAutomatic THEN	
+	_modeAutomaticRequest:= TRUE;	
+	_modeManualRequest:= FALSE;
+	_dataModeRequest:= FALSE;
+ELSIF _Hmi.Button_Manual.Pulse OR DI_KeySwitchManual THEN	
+	_modeAutomaticRequest:= FALSE;	
+	_modeManualRequest:= TRUE;
+	_dataModeRequest:= FALSE;
+ELSIF NOT DI_KeySwitchAutomatic AND NOT DI_KeySwitchManual THEN 
+//	_Hmi.Button_Auto.Visible:= TRUE;
+//	_Hmi.Button_Manual.Visible:= TRUE;
+	_dataModeRequest:= TRUE;
+	_modeAutomaticRequest:= FALSE;
+	_modeManualRequest:= FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_parameterControl" Id="{faa1c46e-fb4c-4a9f-9dbd-d31d5a76edb0}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _parameterControl : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_parameterControl:= TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_resetCondition" Id="{43f50205-3be5-41d6-9abf-319698cdefdf}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _resetCondition  
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _condition.isError() THEN
+	IF _Hmi_station.Button_Escape.Pulse THEN
+		_condition.clear();
+	END_IF
+ELSE
+	_condition.clear();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_stepHeader" Id="{5d30df4b-79b7-44b7-82ff-7a1aa28f7ddd}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _stepHeader
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Switch off in case of off command or safety error
+IF _step.actual > _STEP_OFF THEN
+	IF _hmi.Button_OnOff.Pulse THEN	
+		_step.init();
+	ELSIF NOT _Isafety.IsSafe THEN
+		_step.init();
+	END_IF
+END_IF
+//Call Step sequence header
+_step.Header();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_steps" Id="{9b1f9504-ab95-4587-9d68-fa99bbd6784e}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _steps
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_stepHeader();
+
+CASE _Step.actual OF
+	0:	_a0_PowerOff();
+	1:	_a1_PowerOn();
+	2:	_a2_OnToHome();
+	3:	_a3_Home();
+	4:	_a4_Run();
+	5:	_a5_RunToHome();
+ELSE
+	_aX_Fail();
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_textReader" Id="{3bee4e6c-2bf5-4c52-8de6-96ad1936d520}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _textReader : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.Path:= _textPath;
+_Text.FBmain();
+
+IF _Text.State.fail THEN
+	_Message.clear();
+	_Message.line_01:= "TextHandler";
+	_Message.line_02:= _Text.State.description;
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _Message);
+ELSIF NOT _Text.Valid THEN
+	_Message.clear();
+	_Message.line_01:= "TextHandler";
+	_Message.line_02:= _Text.State.description;
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_MasterMessage + 999,
+		message	:= _Message);
+END_IF
+
+IF _Text.LoadedLanguage <> '' THEN
+	_textReader:= TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiText" Id="{b100299f-9ea6-4e0f-b930-d3470815c58e}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiText
+VAR_INPUT
+	userMessage		: WSTRING;
+	userAction		: WSTRING;
+	isErrorMessage	: BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_message.clear();
+
+_Text.ClearVars();
+_Text.AddVar(Text:= INT_TO_WSTRING(_step.actual));
+_Text.AddVar(Text:= _stepDescription);
+_Text.AddVar(Text:= "0");
+_message.line_01:= _Text.GetText(Number:= _E_Text.step_0_actual_1);
+_message.line_02:= userMessage;
+_message.line_03:= userAction;
+IF isErrorMessage AND NOT _condition.isError() THEN
+	_log(Text:= _message.toString());
+END_IF
+
+IF isErrorMessage THEN
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _message);
+ELSIF (userAction <> "") THEN
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Message,
+		message	:= _message);
+ELSE
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Text,
+		message	:= _message);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="articleAutoSelection" Id="{668b83d3-26bd-40d6-81c7-6f10bd0ad407}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY articleAutoSelection : BOOL]]></Declaration>
+      <Get Name="Get" Id="{0023d394-6174-45a6-8c9f-0963ca270a43}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[articleAutoSelection:= _articleAutoSelection;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{39b22ce4-315f-4558-a77c-14cfa8eef7ce}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_articleAutoSelection:= articleAutoSelection;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <Method Name="FB_init" Id="{c3c391cb-cc51-468e-9f33-3efcc917ff2f}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains 		: BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode 		: BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	EnableStopMode		: BOOL;
+	CommonText			: KOSTAL_AF2024_Core_Text.I_Text;
+	textPath			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+	Parameters			: I_Parameters_MainControl;
+	Safety				: I_Safety;
+	EtherCAT			: I_EtherCAT;
+	Fuse				: I_Fuse;
+	Logger				: KOSTAL_AF2024_Core_FileLogger.I_Logger;
+//	Article				: I_Article;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[THIS^._enableStopMode:= EnableStopMode;
+THIS^._Text.linkCommonText(Common:= CommonText);
+THIS^._textPath:= textPath;
+THIS^._Iparameters:= Parameters;
+THIS^._Isafety:= Safety;
+THIS^._IetherCAT:= EtherCAT;
+THIS^._IfuseMonitroing:= Fuse;
+THIS^._Ilogger:= Logger;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FBmain" Id="{d90a8d2b-1280-4fc2-a1eb-05085edc586a}">
+      <Declaration><![CDATA[METHOD PUBLIC FBmain 
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_modeRequest();
+
+IF NOT _parameterControl() THEN RETURN; END_IF
+_hmiDefine();
+_resetCondition();
+_handleAndonLight();
+
+IF NOT _TextReader() THEN RETURN; END_IF
+
+_globalError();
+_modeHandler();
+_steps();
+
+_onAbortButton(CLK:= DI_AbortButton);]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="language" Id="{489a15f1-40a6-4fb1-8b49-ada85497c667}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY language : KOSTAL_AF2024_HMI_I_Hmi.T_LANGUAGENAME]]></Declaration>
+      <Get Name="Get" Id="{758ad967-f159-440b-976b-701354832f37}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[language:= _Hmi.Language;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="pressedAbortButton" Id="{00183c8d-dca3-4852-a60d-5fa7ae38b547}" FolderPath="Property \">
+      <Declaration><![CDATA[{warning 'add property implementation'}
+PROPERTY pressedAbortButton : BOOL
+]]></Declaration>
+      <Get Name="Get" Id="{9854779f-6d05-4bc6-bbba-6b4b9f09def4}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[pressedAbortButton:= _onAbortButton.Q; ]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="user" Id="{d8a6ec2a-271e-48d8-af4d-143c4c1ce7ec}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY user : KOSTAL_AF2024_HMI_I_Hmi.E_UserLevel]]></Declaration>
+      <Get Name="Get" Id="{47afce6c-81ed-4cb1-a78c-165e0778aad3}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[user:= _Hmi.UserLevel;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="FB_MainControlCell">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._a0_PowerOff">
+      <LineId Id="7" Count="4" />
+      <LineId Id="77" Count="1" />
+      <LineId Id="12" Count="55" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="72" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._a1_PowerOn">
+      <LineId Id="7" Count="4" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="12" Count="15" />
+      <LineId Id="48" Count="3" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="28" Count="11" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._a2_OnToHome">
+      <LineId Id="6" Count="16" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._a3_Home">
+      <LineId Id="6" Count="27" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._a4_Run">
+      <LineId Id="6" Count="49" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._a5_RunToHome">
+      <LineId Id="7" Count="21" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._aX_Fail">
+      <LineId Id="6" Count="13" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._checkIfSamePosition">
+      <LineId Id="5" Count="0" />
+      <LineId Id="9" Count="2" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._getIdAsString">
+      <LineId Id="7" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._globalError">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._handleAndonLight">
+      <LineId Id="6" Count="22" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._hmiDefine">
+      <LineId Id="7" Count="21" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="30" Count="2" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="36" Count="13" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._isLogReady">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._log">
+      <LineId Id="7" Count="8" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._modeHandler">
+      <LineId Id="10" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._modeRequest">
+      <LineId Id="6" Count="4" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="11" Count="2" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="24" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="19" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._parameterControl">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._resetCondition">
+      <LineId Id="6" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._stepHeader">
+      <LineId Id="6" Count="8" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._steps">
+      <LineId Id="6" Count="10" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._textReader">
+      <LineId Id="6" Count="20" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell._updateHmiText">
+      <LineId Id="9" Count="24" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.articleAutoSelection.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.articleAutoSelection.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.FB_init">
+      <LineId Id="17" Count="7" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.FBmain">
+      <LineId Id="6" Count="2" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="12" Count="7" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.language.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.pressedAbortButton.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MainControlCell.user.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

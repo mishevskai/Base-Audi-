@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_CounterHandler" Id="{64e78a85-5948-493d-833a-3abccc6a026d}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_CounterHandler EXTENDS KOSTAL_AF2024_HMI_WinHMI.FB_Counter
+VAR
+	_scrap				: REAL;
+	_FormatString		: Tc2_Utilities.FB_FormatString;
+	_FormattedString	: STRING(255);
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="_storage" Id="{0b666075-b245-4bce-b4d1-79e3c6f58f31}">
+      <Declaration><![CDATA[METHOD PROTECTED _storage
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+
+IF	_Istorage.State.fail THEN
+
+	_message.clear();
+	_message.line_01:= "ERROR Counter Storage";
+	_message.line_02:= _Istorage.State.description;
+
+	_condition.setMessage(_condition.PriorityLevel_Error, _message);
+	
+	IF _pageStation.Button_Escape.Pulse THEN
+		 _Istorage.Reset();
+	END_IF
+
+ELSIF NOT _Istorage.State.ready THEN
+
+	_message.clear();
+	_message.line_01:= "wait for Counter Storage >Ready<";
+	_message.line_02:= _Istorage.State.description;
+	
+	_condition.setMessage(_condition.PriorityLevel_Message, _message);
+
+
+ELSIF NOT _initFromStorageDone THEN
+
+	_counterPass.Init(_Istorage.Content.Pass);
+	_counterFail.Init(_Istorage.Content.Fail);
+	
+	_initFromStorageDone:= TRUE;
+	
+ELSE	
+	_Istorage.Content.fail:= _counterFail.Counter;
+	_Istorage.Content.Pass:= _counterPass.Counter;
+	
+	IF (_counterPass.Counter + _counterFail.Counter) > 0 THEN
+		_scrap:= UDINT_TO_REAL(_counterFail.Counter)/UDINT_TO_REAL(_counterPass.Counter + _counterFail.Counter)*100;
+	ELSE
+		_scrap:= 0;
+	END_IF
+	
+	_message.clear();
+	_message.line_01:= Tc2_Standard.WCONCAT(
+		STR1:= "OK: ",
+		STR2:= UDINT_TO_WSTRING(_counterPass.Counter));
+	_message.line_02:= Tc2_Standard.WCONCAT(
+		STR1:= "NOK: ",
+		STR2:= UDINT_TO_WSTRING(_counterFail.Counter));
+	_FormatString(
+		sFormat:= '%.2f', 
+		arg1:= Tc2_Utilities.F_REAL(_scrap), 
+		sOut=> _FormattedString);		
+	_message.line_03:= Tc2_Standard.WCONCAT(
+		STR1:= "Scrap: ",
+		STR2:= STRING_TO_WSTRING(_FormattedString));
+	_message.line_03:= Tc2_Standard.WCONCAT(
+		STR1:= _message.line_03,
+		STR2:= "%");
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Text, 
+		message	:= _message);
+		
+	IF _Hmi_station.Button_OnOff.Pulse THEN
+		_counterFail.Reset();
+		_counterPass.Reset();
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_CounterHandler">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_CounterHandler._storage">
+      <LineId Id="6" Count="64" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

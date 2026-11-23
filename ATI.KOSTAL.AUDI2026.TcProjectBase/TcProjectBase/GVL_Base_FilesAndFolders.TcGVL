@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="GVL_Base_FilesAndFolders" Id="{5cbd676e-d7d5-4a31-899f-052dfdfb8e3a}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	PATH_TEXT_MAIN_CONTROL		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\MainControl\';
+	PATH_TEXT_SAFETY			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\Safety\';
+	PATH_TEXT_ETHERCAT			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\EtherCAT\';
+	PATH_TEXT_FUSE				: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\FuseMonitoring\';
+	PATH_PARAMETER_VALUES		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Data\parameterValues.json';
+	PATH_TEXT_COMMON			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\Common\';
+	PATH_TEXT_MASTER			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\TextMaster\';
+	PATH_TEXT_ARTICLE			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Text\Article\';
+	PATH_ARTICLES				: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Article';
+	PATH_RESET_COUNTER			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Counter\ResettableCounter.json';
+	PATH_TOTAL_COUNTER			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Counter\TotalCounter.json';
+	PATH_LOGGER_PROCESS			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\Log\Process\';
+	PATH_LOGGER_SAFETY			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\Log\Safety\';
+	PATH_LOGGER_ETHERCAT		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\Log\EtherCAT Diagnostics\';
+	PATH_LOGGER_FUSE			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\Log\Fuse Diagnostics\';
+	
+
+
+
+
+//	PATH_TEXT_MAIN_CONTROL		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\MainControl\';//'D:\PLC\Text\MainControl\';//
+//	PATH_TEXT_SAFETY			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\Safety\';//'D:\PLC\Text\Safety\';//'
+//	PATH_TEXT_ETHERCAT			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\EtherCAT\';//'D:\PLC\Text\EtherCAT\';//
+//	PATH_TEXT_FUSE				: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\FuseMonitoring\';//'D:\PLC\Text\FuseMonitoring\';//
+//	PATH_PARAMETER_VALUES		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Data\parameterValues.json';//'D:\PLC\Data\parameterValues.json';//
+//	PATH_TEXT_COMMON			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\Common\';//'D:\PLC\Text\Common\';//
+//	PATH_TEXT_MASTER			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\TextMaster\';//'D:\PLC\Text\TextMaster\';//
+//	PATH_TEXT_ARTICLE			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Text\Article\';//'D:\PLC\Text\Article\';//
+//	PATH_ARTICLES				: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Article';//'D:\PLC\Article';//
+//	PATH_RESET_COUNTER			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\PLC\Counter\ResettableCounter.json';//
+//	PATH_TOTAL_COUNTER			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'D:\PLC\Counter\TotalCounter.json';//'C:\Users\ATI\Desktop\ST80\PLC\Counter\TotalCounter.json';//'D:\PLC\Counter\ResettableCounter.json';//
+//	PATH_LOGGER_PROCESS			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\Log\Process\';//'D:\Log\Process\';//
+//	PATH_LOGGER_SAFETY			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\Log\Safety\';//'D:\Log\Safety\';//
+//	PATH_LOGGER_ETHERCAT		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\Log\EtherCAT Diagnostics\';//'D:\Log\EtherCAT Diagnostics\';//
+//	PATH_LOGGER_FUSE			: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8:= 'C:\Users\ATI\Desktop\ST80\Log\Fuse Diagnostics\';//'D:\Log\Fuse Diagnostics\';//
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_Fuse" Id="{258316fe-bb84-4bf0-b022-b1181887a622}">
+    <Declaration><![CDATA[INTERFACE I_Fuse
+]]></Declaration>
+    <Property Name="inError" Id="{8131d4f1-99f9-4d71-9dbf-63381a3ca8f5}">
+      <Declaration><![CDATA[PROPERTY inError : BOOL]]></Declaration>
+      <Get Name="Get" Id="{e3e0986c-4202-473b-9b83-803d3a832a09}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

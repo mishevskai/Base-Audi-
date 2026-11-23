@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="T_E_text_Safety" Id="{7ecd4c03-6104-4c78-831d-d794bc761f51}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK T_E_text_Safety EXTENDS T_E_text_Common
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Property Name="errorDoor_0" Id="{2ef9f95c-e717-4c5a-9f02-2332fee5bbe7}">
+      <Declaration><![CDATA[PROPERTY errorDoor_0 : ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{d2acc0ee-f067-474a-9a5f-139919dfcf29}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[errorDoor_0.Number:= 13;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="errorEStop_0" Id="{22ec61af-cc72-4c7d-9085-190c54540a24}">
+      <Declaration><![CDATA[PROPERTY errorEStop_0 : ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{3b60cb18-b979-4679-9db6-8ad6a2d62b3b}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[errorEStop_0.Number:= 12;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="errorGroupCom" Id="{51e56854-8778-4d12-8492-5021af1fbff9}">
+      <Declaration><![CDATA[PROPERTY errorGroupCom : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{68426aa1-6872-4f7f-bd7e-f5e55f0f2f83}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[errorGroupCom.Number:= 10;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="errorGroupFb" Id="{2f1bebaf-00b7-41a9-8e90-dcc77da18832}">
+      <Declaration><![CDATA[PROPERTY errorGroupFb : ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{099e1515-b1ae-46ac-9cc7-3e206a9cca37}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[errorGroupFb.Number:= 11;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="safetyNok" Id="{2e565c95-cc4c-4c5b-97f1-036c5db99d7c}">
+      <Declaration><![CDATA[PROPERTY safetyNok : ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{99bac8a4-ddf6-478d-9765-16dc4e5e91da}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[safetyNok.Number:= 5;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="safetyOk" Id="{f839acea-d733-465e-be40-bfa31e060e34}">
+      <Declaration><![CDATA[PROPERTY safetyOk : ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{469a4a5c-b19a-49a8-94cd-f217abb251ba}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[safetyOk.Number:= 4;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="safetyRelay_0" Id="{61dd033c-3085-4e49-896b-39bff657ced4}">
+      <Declaration><![CDATA[PROPERTY safetyRelay_0 : ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{583ed0e1-bd49-4246-b329-2e164038cb04}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[safetyRelay_0.Number:= 14;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="T_E_text_Safety">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.errorDoor_0.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.errorEStop_0.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.errorGroupCom.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.errorGroupFb.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.safetyNok.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.safetyOk.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Safety.safetyRelay_0.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

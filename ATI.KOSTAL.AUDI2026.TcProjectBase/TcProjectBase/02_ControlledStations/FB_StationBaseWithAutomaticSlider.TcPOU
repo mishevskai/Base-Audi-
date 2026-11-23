@@ -1,0 +1,319 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_StationBaseWithAutomaticSlider" Id="{18e9245b-0cb1-4a5a-b8f8-6f1536abc090}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_StationBaseWithAutomaticSlider EXTENDS FB_StationBase
+VAR
+	(* Slider Automatic Cylinder *)
+	_SliderAutomaticCylinder 				   : KOSTAL_AF2024_Drivers_Actuation_Cylinder.FB_Cylinder_Controlled;
+	DI_SliderAutomaticCylinderHP		AT %I* : BOOL;
+	DI_SliderAutomaticCylinderWP		AT %I* : BOOL;
+	DO_SliderAutomaticCylinderWP		AT %Q* : BOOL;
+	DO_SliderAutomaticCylinderHP		AT %Q* : BOOL;
+	
+	(* Slider Locking Cylinder Front Position *)
+	_SliderLockingCylinderFrontPosition		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.FB_Cylinder_Controlled;
+	DO_SliderLockCylinderFrontPosHP		AT %Q* : BOOL; // Treba da se vidi koi sensori bi se koristele ovde 
+	DO_SliderLockCylinderFrontPosWP		AT %Q* : BOOL;
+	DI_SliderLockCylinderFrontPosWP		AT %I* : BOOL;
+	DI_SliderLockCylinderFrontPosHP		AT %I* : BOOL;
+	DI_SliderInFrontPos					AT %I* : BOOL;
+	DI_SliderInBackPos					AT %I* : BOOL;
+	
+	(* Process *)
+	_timerSliderInBackPos						: Tc2_Standard.TON;
+	_timerSliderInFrontPos						: Tc2_Standard.TON;
+	
+	(* Names *)
+	_automaticSliderInFrontPositionName 	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	_automaticSliderInBackPositionName 	: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	_isHomeDone					: BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="ITFs" Id="{ab59b50a-7d22-4e67-90d9-fbf0d513c651}" />
+    <Folder Name="Property " Id="{dddc2454-bdf3-4591-a9d6-406ce2c9e3a3}" />
+    <Folder Name="Steps" Id="{2a44b4ac-ff55-4cb6-ac5e-be2eeba8a8d1}" />
+    <Folder Name="System " Id="{771568eb-cb54-41be-a930-1d2514913fa3}" />
+    <Method Name="_a2_X_CloseAutomaticSlider" Id="{e283b0ad-a1c0-4d3e-a425-ad125e19cff1}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_CloseAutomaticSlider
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_timerSliderInFrontPos(IN:= FALSE);
+	_stepDescription:= "SliderUnlockFrontPosition"; 
+END_IF
+
+(* If slider in front position skip this step *)
+IF _SubStep.isActive(0) THEN 
+	IF DI_SliderAutomaticCylinderWP THEN 
+		_SubStep.set(request:= 4);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF 
+(* Unlock *)
+IF _SubStep.isActive(1) THEN 
+	IF _SliderLockingCylinderFrontPosition.moveTo_A() THEN 
+		_SubStep.INC();
+	ELSIF  _SliderLockingCylinderFrontPosition.Error.active THEN 	
+		_updateHmiTextWithCylinderError(Cylinder:= _SliderLockingCylinderFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_updateHmiTextWithCylinderTextMoveToHP(Cylinder:= _SliderLockingCylinderFrontPosition);
+	END_IF
+END_IF
+(* Move Automatic Slider Cylinder in front position*)
+IF _SubStep.isActive(2) THEN 
+	IF _SliderAutomaticCylinder.moveTo_B() THEN 
+		_SubStep.INC();
+	ELSIF _SliderAutomaticCylinder.Error.active THEN 
+		_updateHmiTextWithCylinderError(Cylinder:= _SliderAutomaticCylinder);
+	ELSE 
+		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= _SliderAutomaticCylinder);
+	END_IF
+END_IF
+(* Wait slider in back position *)
+IF _SubStep.isActive(3) THEN 
+	_timerSliderInFrontPos(
+		IN	:= DI_SliderAutomaticCylinderWP,
+		PT	:= T#500MS); //T#500MS
+	IF NOT _timerSliderInFrontPos.Q THEN  
+		_Text.ClearVars();
+		_Text.AddVar(Text:= _automaticSliderInFrontPositionName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.waitSliderInFrontPosition),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.waitForSensor_0),
+			isErrorMessage	:= FALSE);	
+	ELSIF  DI_SliderAutomaticCylinderWP  THEN 
+		_SubStep.INC();
+	END_IF	
+END_IF
+(* Lock *)
+IF _SubStep.isActive(4) THEN
+	IF _SliderLockingCylinderFrontPosition.moveTo_B() THEN
+		_SliderAutomaticCylinder.Pressureless();
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF _SliderLockingCylinderFrontPosition.Error.active THEN
+		_addressRestart:= _SubStep.actual;
+		_getCylinderErrorTexts(Cylinder:= _SliderLockingCylinderFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE
+		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= _SliderLockingCylinderFrontPosition);
+	END_IF
+END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();
+
+
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_OpenAutomaticSlider" Id="{c7d05e38-2d21-465b-a93e-008f1468a6e7}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_OpenAutomaticSlider
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_timerSliderInBackPos(IN:= FALSE);
+	_stepDescription:= "CloseAutomaticSlider";
+END_IF
+(* If slider in back position skip this step *)
+IF _SubStep.isActive(0) THEN 
+	IF DI_SliderAutomaticCylinderHP THEN 
+		_SubStep.set(request:=3);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF 
+(* Unlock *)
+IF _SubStep.isActive(1) THEN 
+	IF _SliderLockingCylinderFrontPosition.moveTo_A() THEN 
+		_SubStep.INC();
+	ELSIF  _SliderLockingCylinderFrontPosition.Error.active THEN 
+		_updateHmiTextWithCylinderError(Cylinder:= _SliderLockingCylinderFrontPosition);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_updateHmiTextWithCylinderTextMoveToHP(Cylinder:= _SliderLockingCylinderFrontPosition);
+	END_IF
+END_IF
+(* Move Automatic Slider Cylinder in back position*)
+IF _SubStep.isActive(2) THEN 
+	IF _SliderAutomaticCylinder.moveTo_A() THEN 
+		_SubStep.INC();
+	ELSIF _SliderAutomaticCylinder.Error.active THEN 
+		_updateHmiTextWithCylinderError(Cylinder:= _SliderAutomaticCylinder);
+	ELSE 
+		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= _SliderAutomaticCylinder);
+	END_IF
+END_IF
+(* Wait slider in back position *)
+IF _SubStep.isActive(3) THEN 
+	_timerSliderInBackPos(
+		IN:=   DI_SliderAutomaticCylinderHP,
+		PT:=   T#500MS 	);//500ms da se doddade
+	IF NOT DI_SliderAutomaticCylinderHP THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= _automaticSliderInBackPositionName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.waitSliderInBackPosition),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.waitForSensor_0),
+			isErrorMessage	:= FALSE);
+	ELSIF NOT _timerSliderInBackPos.Q THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= _automaticSliderInBackPositionName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.waitSliderInBackPosition),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.waitForSensor_0),
+			isErrorMessage	:= FALSE);	
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF	
+END_IF
+//(* Lock *)
+//IF _SubStep.isActive(4) THEN
+//	IF _SliderLockingCylinderFrontPosition.moveTo_B() THEN
+//		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+//	ELSIF _SliderLockingCylinderFrontPosition.Error.active THEN
+//		_addressRestart:= _SubStep.actual;
+//		_getCylinderErrorTexts(Cylinder:= _SliderLockingCylinderFrontPosition);
+//		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+//	ELSE
+//		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= _SliderLockingCylinderFrontPosition);
+//	END_IF
+//END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER,
+		retryAddress		:= _addressRestart,
+		abortAddress		:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="sliderInBackPositionName" Id="{9aeed47a-f5fc-44f5-ae43-d113627e8105}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY sliderInBackPositionName : KOSTAL_AF2024_Core_Settings.T_MaxString]]></Declaration>
+      <Get Name="Get" Id="{acc0faab-2049-4087-bfce-8b7091aa5e36}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[sliderInBackPositionName:= _automaticSliderInBackPositionName;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{c6c1b096-e57d-4bf9-8d51-2efa007dab99}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_automaticSliderInBackPositionName:= sliderInBackPositionName;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <Property Name="sliderInFrontPositionName" Id="{91681094-3b31-4254-9ac9-3e84a4a9ff86}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY sliderInFrontPositionName : KOSTAL_AF2024_Core_Settings.T_MaxString]]></Declaration>
+      <Get Name="Get" Id="{cb52aa9e-46bc-4784-ba11-add9848f10f0}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[sliderInFrontPositionName:= _automaticSliderInFrontPositionName;]]></ST>
+        </Implementation>
+      </Get>
+      <Set Name="Set" Id="{5814260c-a2fb-46a1-ad84-921fa5f2a4d0}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[_automaticSliderInFrontPositionName:= sliderInFrontPositionName;]]></ST>
+        </Implementation>
+      </Set>
+    </Property>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider._a2_X_CloseAutomaticSlider">
+      <LineId Id="6" Count="3" />
+      <LineId Id="104" Count="13" />
+      <LineId Id="193" Count="0" />
+      <LineId Id="119" Count="18" />
+      <LineId Id="181" Count="1" />
+      <LineId Id="140" Count="4" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="155" Count="4" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="160" Count="20" />
+      <LineId Id="99" Count="1" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider._a2_X_OpenAutomaticSlider">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="3" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="16" Count="3" />
+      <LineId Id="107" Count="1" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="110" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="85" Count="7" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="29" Count="2" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="46" Count="5" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="118" Count="5" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="124" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="54" Count="22" />
+      <LineId Id="32" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider.sliderInBackPositionName.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider.sliderInBackPositionName.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider.sliderInFrontPositionName.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBaseWithAutomaticSlider.sliderInFrontPositionName.Set">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

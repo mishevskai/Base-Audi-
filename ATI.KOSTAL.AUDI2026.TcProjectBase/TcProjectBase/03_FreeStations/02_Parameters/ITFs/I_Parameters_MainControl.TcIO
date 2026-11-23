@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_Parameters_MainControl" Id="{ac418b51-b2c2-4e75-8392-0f9fe5c71974}">
+    <Declaration><![CDATA[INTERFACE I_Parameters_MainControl 
+]]></Declaration>
+    <Property Name="cylinderSensorTimeout" Id="{a539eef0-e668-4d30-bdf4-17d19fc50d5c}">
+      <Declaration><![CDATA[PROPERTY cylinderSensorTimeout : TIME]]></Declaration>
+      <Get Name="Get" Id="{1d4b370b-eb35-4a73-91e4-c2a260391746}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="isLoggerEnabled" Id="{24545445-dc74-42e9-b1c6-b3af94d10f62}">
+      <Declaration><![CDATA[PROPERTY isLoggerEnabled : BOOL]]></Declaration>
+      <Get Name="Get" Id="{8fc51ee9-5587-43fd-b626-46e233e7f3cb}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="numberOfRetries" Id="{3250e2cb-c237-42a7-be55-e0c13f4e8e1e}">
+      <Declaration><![CDATA[PROPERTY numberOfRetries : INT]]></Declaration>
+      <Get Name="Get" Id="{240e4671-b07e-442b-95c3-d9f229abd2d8}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

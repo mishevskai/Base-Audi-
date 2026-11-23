@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_EtherCAT" Id="{56712762-1537-474d-beb1-103e887f2ab4}">
+    <Declaration><![CDATA[INTERFACE I_EtherCAT
+]]></Declaration>
+    <Property Name="inError" Id="{2234d776-9fe3-42a5-8a61-b133c29a043e}">
+      <Declaration><![CDATA[PROPERTY inError : BOOL]]></Declaration>
+      <Get Name="Get" Id="{b5596eb6-36db-40ba-aa0a-f2287b7ce024}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

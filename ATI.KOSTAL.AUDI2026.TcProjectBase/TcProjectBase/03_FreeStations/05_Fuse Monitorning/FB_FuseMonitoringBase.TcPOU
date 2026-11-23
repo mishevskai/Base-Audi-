@@ -1,0 +1,130 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_FuseMonitoringBase" Id="{c17f9726-648a-44e3-982f-fa8f2eb294f4}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_FuseMonitoringBase EXTENDS KOSTAL_AF2024_Core_Station.FB_Station_Free IMPLEMENTS I_Fuse
+VAR
+	_Hmi_station			: KOSTAL_AF2024_HMI_WinHMI.FB_Page_Station;
+	_E_Text					: T_E_text_Fuse;
+	_inError				: BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{3fc98d11-943e-4560-bb44-83dea6104567}" />
+    <Folder Name="Property " Id="{caf6e9d1-5dde-4929-9252-3fc956009ed2}" />
+    <Method Name="_checkAllDevices" Id="{d9c4380e-20c4-4152-b6d7-56a2af9188ff}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _checkAllDevices
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_hmiDefine" Id="{9ef7a9ef-bb8b-490f-88c6-34ca63e9e997}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _hmiDefine
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Hmi_station.FBmain();
+
+_Hmi_station.Name:= _Text.GetText(Number:= _E_Text.name);
+
+_Hmi_station.Text.line_01:= _Hmi_station.Status.Message.line_01;
+_Hmi_station.Text.line_02:= _Hmi_station.Status.Message.line_02;
+_Hmi_station.Text.line_03:= _Hmi_station.Status.Message.line_03;
+(* Reset button *)
+_Hmi_station.Button_Escape.Text:= _Text.GetText(Number:= _E_Text.reset);
+_Hmi_station.Button_Escape.Visible:= _Hmi_station.Status.isError();
+
+_Hmi_station.Status.CopyFrom(IN:= _condition);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_resetCondition" Id="{87e8a182-441d-4d5f-acd3-8b67c2df849d}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _resetCondition
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _condition.isError() THEN
+	IF _Hmi_station.Button_Escape.Pulse THEN
+		_condition.clear();
+	END_IF
+ELSE
+	_condition.clear();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FB_init" Id="{8caa82d4-2a51-43a4-a6d9-7a66b893c43a}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains : BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode : BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	ID_Name			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	ID_Key			: DINT;
+	CommonText		: KOSTAL_AF2024_Core_Text.I_Text;
+	textPath		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_textPath:= textPath;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FBmain" Id="{2b0efafc-626a-4a0a-becb-9b801e6b88f6}">
+      <Declaration><![CDATA[METHOD PUBLIC FBmain
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT _parameterControl() THEN RETURN; END_IF
+
+_hmiDefine();
+_resetCondition();
+
+IF NOT _TextReader() THEN RETURN; END_IF
+
+_inError:= FALSE;
+_checkAllDevices();]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="inError" Id="{72cab9ea-e25a-4495-b386-f8f433759c7d}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY inError : BOOL]]></Declaration>
+      <Get Name="Get" Id="{acba31f0-61ab-495c-8ae1-49e21fe97512}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[inError:= _inError;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="FB_FuseMonitoringBase">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_FuseMonitoringBase._checkAllDevices">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_FuseMonitoringBase._hmiDefine">
+      <LineId Id="6" Count="10" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="22" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_FuseMonitoringBase._resetCondition">
+      <LineId Id="6" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_FuseMonitoringBase.FB_init">
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_FuseMonitoringBase.FBmain">
+      <LineId Id="6" Count="7" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_FuseMonitoringBase.inError.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

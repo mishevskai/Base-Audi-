@@ -1,0 +1,182 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_EtherCAT_Base" Id="{86af39f9-932f-445c-8286-94f0984f758c}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_EtherCAT_Base EXTENDS KOSTAL_AF2024_Core_Station.FB_Station_Free IMPLEMENTS I_EtherCAT
+VAR
+	_Hmi_station			: KOSTAL_AF2024_HMI_WinHMI.FB_Page_Station;
+	_E_Text					: T_E_text_EtherCAT;
+	_inError				: BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{413c8ca7-b5a1-4180-9bf8-e05bc295ae93}" />
+    <Folder Name="Property " Id="{20483b16-afa7-4508-8c1a-b590b246410e}" />
+    <Method Name="_checkAllDevices" Id="{3c900ab1-8ef2-4851-a356-ec00a099b24b}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _checkAllDevices
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_hmiDefine" Id="{c691bdd3-25d9-41c3-b479-65e740eec44e}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _hmiDefine
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Hmi_station.FBmain();
+
+_Hmi_station.Name:= _Text.GetText(Number:= _E_Text.name);
+
+_Hmi_station.Text.line_01:= _Hmi_station.Status.Message.line_01;
+_Hmi_station.Text.line_02:= _Hmi_station.Status.Message.line_02;
+_Hmi_station.Text.line_03:= _Hmi_station.Status.Message.line_03;
+(* Reset button *)
+_Hmi_station.Button_Escape.Text:= _Text.GetText(Number:= _E_Text.reset);
+_Hmi_station.Button_Escape.Visible:= _Hmi_station.Status.isError();
+
+_Hmi_station.Status.CopyFrom(IN:= _condition);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_isDeviceOk" Id="{e89cdd82-d057-4f4b-8b33-3cec9c7b7ce3}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _isDeviceOk : BOOL
+VAR_INPUT
+	state		: INT;
+	name		: WSTRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (state = 8) THEN
+	_isDeviceOk:= TRUE;
+ELSE
+	_Text.ClearVars();
+	_Text.AddVar(Text:= name);
+	_Text.AddVar(Text:= _stateToString(state:= state));
+	_message.clear();
+	_message.line_01:= _Text.GetText(Number:= _E_Text.device_0_isInState_1);
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _message);
+	_isDeviceOk:= FALSE;
+	_inError:= TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_resetCondition" Id="{cc8a7ea6-0d83-4101-9b0f-5dfc707aeb0c}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _resetCondition 
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _condition.isError() THEN 
+	IF _Hmi_station.Button_Escape.Pulse THEN 
+		_condition.clear();
+	END_IF
+ELSE 
+	_condition.clear();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_stateToString" Id="{dd229bbc-8ba5-4cd6-a34b-41e453417fbf}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PROTECTED _stateToString : KOSTAL_AF2024_Core_Settings.T_MaxString
+VAR_INPUT
+	state		: INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE state OF 
+	1: _stateToString := "INIT";
+	2: _stateToString := "PREOP";
+	3: _stateToString := "BOOT";
+	4: _stateToString := "SAFEOP";
+	8: _stateToString := "OP";
+ELSE 
+	_stateToString := "Unknown";
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FB_init" Id="{372a708a-fa55-4355-8e3d-eefb43ca7df5}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains 	: BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode		: BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	ID_Name			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	ID_Key			: DINT;
+	CommonText		: KOSTAL_AF2024_Core_Text.I_Text;
+	textPath		: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_textPath:= textPath;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FBmain" Id="{3b008f5a-6b31-455d-8c49-09d3516ddcb1}">
+      <Declaration><![CDATA[METHOD FBmain
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT _parameterControl() THEN RETURN; END_IF
+
+_hmiDefine();
+_resetCondition();
+
+IF NOT _TextReader() THEN RETURN; END_IF
+
+_inError:= FALSE;
+_checkAllDevices();]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="inError" Id="{6cdb0147-4e9d-48c1-b754-d3abe8b8a16a}" FolderPath="Property \">
+      <Declaration><![CDATA[PROPERTY inError : BOOL]]></Declaration>
+      <Get Name="Get" Id="{ecc29ee2-418b-4f28-b0f7-9eb2f4fa466f}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[inError:= _inError;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="FB_EtherCAT_Base">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base._checkAllDevices">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base._hmiDefine">
+      <LineId Id="6" Count="10" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base._isDeviceOk">
+      <LineId Id="8" Count="12" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base._resetCondition">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="10" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base._stateToString">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="5" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base.FB_init">
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base.FBmain">
+      <LineId Id="6" Count="7" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_EtherCAT_Base.inError.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

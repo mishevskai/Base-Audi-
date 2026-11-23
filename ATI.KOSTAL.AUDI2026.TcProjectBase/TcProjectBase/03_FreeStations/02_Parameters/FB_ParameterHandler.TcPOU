@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_ParameterHandler" Id="{de5c841e-3290-0e6b-0bfb-3f8135565583}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_ParameterHandler EXTENDS KOSTAL_AF2024_HMI_WinHMI.FB_Parameters_Base IMPLEMENTS I_Parameters_MainControl
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="I_Parameters_MainControl" Id="{e90b4100-972e-05fd-04cc-db66b386c159}" />
+    <Folder Name="Private" Id="{c9d2c9b0-249c-055b-13da-628e2e99e886}" />
+    <Property Name="airPressureMax" Id="{d7cc16d0-eec9-0cac-341a-d31e5153d990}" FolderPath="I_Parameters_MainControl\">
+      <Declaration><![CDATA[PROPERTY airPressureMax : INT
+]]></Declaration>
+      <Get Name="Get" Id="{9af21b3c-cd52-023e-0123-7e5578ec07a4}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[airPressureMax:= STRING_TO_INT(_getParameterValue(index:= E_Parameters.airPressureMax));]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="airPressureMin" Id="{5f3b26d9-3ff3-0b2f-1a8f-c3cbdea25a95}" FolderPath="I_Parameters_MainControl\">
+      <Declaration><![CDATA[PROPERTY airPressureMin : INT
+]]></Declaration>
+      <Get Name="Get" Id="{e7b034a8-1802-0e24-3e9b-d77c7099903a}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[airPressureMin:= STRING_TO_INT(_getParameterValue(index:= E_Parameters.airPressureMin));]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="cylinderSensorTimeout" Id="{ea90df9f-98c5-475b-ab5f-3f8534cba318}" FolderPath="I_Parameters_MainControl\">
+      <Declaration><![CDATA[{warning 'add property implementation'}
+PROPERTY cylinderSensorTimeout : TIME
+]]></Declaration>
+      <Get Name="Get" Id="{4cb9fb38-069d-4044-b903-c8b5dc9d8e07}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[cylinderSensorTimeout:= STRING_TO_TIME(_getParameterValue(index:= E_Parameters.cylinderTimeout));]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Method Name="FB_init" Id="{1651d52f-d2b9-09a9-2e7b-a3f01a6ad6da}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD FB_init : BOOL
+VAR_INPUT
+	bInitRetains 	: BOOL; // if TRUE, the retain variables are initialized (warm start / cold start)
+	bInCopyCode 	: BOOL;  // if TRUE, the instance afterwards gets moved into the copy code (online change)
+	ID_Name			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	ID_Key			: DINT;
+	CommonText		: KOSTAL_AF2024_Core_Text.I_Text;
+	parameterPath	: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+	SystemTime		: KOSTAL_AF2024_Core_GetSystemTime.I_TimeSource;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_fullQualifiedFile:= parameterPath;
+_I_getTime:= SystemTime;]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="isLoggerEnabled" Id="{acdfb1c0-6703-466f-be43-1271096a24fb}" FolderPath="I_Parameters_MainControl\">
+      <Declaration><![CDATA[{warning 'add property implementation'}
+PROPERTY isLoggerEnabled : BOOL
+]]></Declaration>
+      <Get Name="Get" Id="{5c7f0837-99b7-421c-b043-82c6bf719d4c}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[isLoggerEnabled:= STRING_TO_BOOL(_getParameterValue(index:= E_Parameters.isLoggerEnabled));]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="isNagaraEnable" Id="{67c2fa63-96c7-4e1b-a61f-a2dbd242dfe2}" FolderPath="I_Parameters_MainControl\">
+      <Declaration><![CDATA[{warning 'add property implementation'}
+PROPERTY isNagaraEnable : BOOL
+]]></Declaration>
+      <Get Name="Get" Id="{f54bbad3-a054-41d9-b4cb-a58b61233e70}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[isNagaraEnable:= STRING_TO_BOOL(_getParameterValue(index:= E_Parameters.isNagaraEnable));]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="numberOfRetries" Id="{38a0335f-7704-41b4-acc3-df5268f0ff89}" FolderPath="I_Parameters_MainControl\">
+      <Declaration><![CDATA[{warning 'add property implementation'}
+PROPERTY numberOfRetries : INT
+]]></Declaration>
+      <Get Name="Get" Id="{3686a156-9dbf-4b17-8288-d74d68ac16b3}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[airPressureMax:= STRING_TO_INT(_getParameterValue(index:= E_Parameters.numberOfRetries));]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="FB_ParameterHandler">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.airPressureMax.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.airPressureMin.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.cylinderSensorTimeout.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.FB_init">
+      <LineId Id="3" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.isLoggerEnabled.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.isNagaraEnable.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ParameterHandler.numberOfRetries.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

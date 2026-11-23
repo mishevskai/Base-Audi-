@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_CustomStationInterface" Id="{9135faed-838e-4c82-9a7a-8ea69bc3c123}">
+    <Declaration><![CDATA[INTERFACE I_CustomStationInterface
+]]></Declaration>
+    <Property Name="pressedAbortButton" Id="{067a4613-d0b4-408d-a0cf-5f6fe8eca99d}">
+      <Declaration><![CDATA[PROPERTY pressedAbortButton  : BOOL]]></Declaration>
+      <Get Name="Get" Id="{8240dc48-d178-42ab-b318-b1f727331493}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

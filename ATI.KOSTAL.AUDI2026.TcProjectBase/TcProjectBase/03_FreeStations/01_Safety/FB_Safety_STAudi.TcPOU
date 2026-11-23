@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Safety_STAudi" Id="{a3bd22ae-0bdd-4761-a569-2697739adb24}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Safety_STAudi EXTENDS FB_SafetyBase
+VAR
+	(* Safety I&O *)
+//	SI_GroupComError	AT %I* : BOOL;
+//	SI_GroupFbError		AT %I* : BOOL;
+//	SI_SafetyRealyInFault 			AT %I* : BOOL;
+//	SO_RunSafety		AT %Q* : BOOL;
+//	SO_ErrorAckSafety	AT %Q* : BOOL;
+//	SO_ResetSafetyExistingSt		AT %Q* : BOOL;//DO5 20DO1
+	SI_EstopOk			AT %I* : BOOL;
+	SI_FrontDoorOk		AT %I* : BOOL;
+	SI_BackDoorOk		AT %I* : BOOL;
+	SO_GroupRun						AT %Q* : BOOL:= TRUE;
+//	SO_GroupErrorAck	AT %Q* : BOOL;
+//	SO_EStopRestart		AT %Q* : BOOL;
+	SO_RestartSaferyRelay		AT %Q* 				   : BOOL; 
+//	SI_FrontDoorOk						   : BOOL;
+//	SI_BackDoorOk						   : BOOL;
+	(* I&O *)
+	DO_FrontDoorLock				AT %Q* : BOOL;
+	DO_BackDoorLock					AT %Q* : BOOL;
+	_timerEstopFault					   : Tc2_Standard.TON;
+	_timerFrontDoorFault				   : Tc2_Standard.TON;
+	_timerBackDoorFault					   : Tc2_Standard.TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="_handleSafety" Id="{efc0fe4f-fc2e-4166-8759-3b65705720d1}">
+      <Declaration><![CDATA[METHOD PROTECTED _handleSafety 
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_timerEstopFault(
+	IN:= NOT SI_EstopOk,
+	PT:= T#100MS);
+_timerFrontDoorFault(
+	IN:= SI_FrontDoorOk,
+	PT:= T#100MS);
+_timerBackDoorFault(
+	IN:= SI_BackDoorOk,
+	PT:= T#100MS);
+
+IF _timerEstopFault.Q THEN
+	_Text.ClearVars();
+	_Text.AddVar(Text:= "11SA1");
+	_message.clear();
+	_message.line_01:= _Text.GetText(Number:= _E_Text.errorEStop_0);
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _message);
+ELSIF _timerFrontDoorFault.Q THEN
+	_Text.ClearVars();
+	_Text.AddVar(Text:= "11SQ1");
+	_message.clear();
+	_message.line_01:= _Text.GetText(Number:= _E_Text.errorDoor_0);
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _message);
+ELSIF _timerBackDoorFault.Q THEN
+	_Text.ClearVars();
+	_Text.AddVar(Text:= "11SQ2");
+	_message.clear();
+	_message.line_01:= _Text.GetText(Number:= _E_Text.errorDoor_0);
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _message);
+END_IF
+
+SO_RestartSaferyRelay:= _Hmi_station.Button_Escape.Sign; //HMI restart 
+DO_FrontDoorLock:= _doorLock;
+DO_BackDoorLock:= _doorLock;
+_isDoorSafe:= DO_BackDoorLock AND DO_FrontDoorLock;
+_isDoorUsed:= TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_Safety_STAudi">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_Safety_STAudi._handleSafety">
+      <LineId Id="57" Count="0" />
+      <LineId Id="7" Count="4" />
+      <LineId Id="74" Count="2" />
+      <LineId Id="18" Count="15" />
+      <LineId Id="77" Count="7" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

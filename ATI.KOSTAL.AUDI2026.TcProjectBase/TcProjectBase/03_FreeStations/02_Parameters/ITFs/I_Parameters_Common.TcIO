@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_Parameters_Common" Id="{8c3e2935-d956-43b5-94b1-2bf4543184c4}">
+    <Declaration><![CDATA[INTERFACE I_Parameters_Common
+]]></Declaration>
+    <Property Name="axisAcceleration" Id="{0f3cd314-9be4-4e9d-b242-52f2b6b51bad}">
+      <Declaration><![CDATA[PROPERTY axisAcceleration : REAL]]></Declaration>
+      <Get Name="Get" Id="{6897b5d0-1ad5-4786-8b74-e64c07d833c5}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="axisDeceleration" Id="{8d9c1efc-e3e1-4d4a-bcb8-a51a6df38e09}">
+      <Declaration><![CDATA[PROPERTY axisDeceleration : REAL]]></Declaration>
+      <Get Name="Get" Id="{d3849138-812e-4224-a449-f2c007075b4b}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="axisJerk" Id="{d2992e3b-5962-40c8-9953-9ac3c762dd3b}">
+      <Declaration><![CDATA[PROPERTY axisJerk : REAL]]></Declaration>
+      <Get Name="Get" Id="{4bb017bd-ed89-4074-9e36-73da4b8ccdbd}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="axisVelocity" Id="{e2019e9d-f846-4711-a876-d72dcc3d2296}">
+      <Declaration><![CDATA[PROPERTY axisVelocity : REAL]]></Declaration>
+      <Get Name="Get" Id="{05c4f912-ec51-4413-b42d-7e124ac50656}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="cylinderSensorTimeout" Id="{caf76d13-7cd9-40ff-9d98-eef7124a317f}">
+      <Declaration><![CDATA[PROPERTY cylinderSensorTimeout : TIME]]></Declaration>
+      <Get Name="Get" Id="{ccefeac3-cead-4527-91e9-b5d2a761e5f3}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="idlePosition" Id="{055f007a-3cf6-46b4-86c6-3d2ed98b0f65}">
+      <Declaration><![CDATA[PROPERTY idlePosition : REAL]]></Declaration>
+      <Get Name="Get" Id="{5d297554-e07c-4483-8a49-24b9b03d4ffe}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="isLoggerEnabled" Id="{13c549af-b355-4ab0-98a9-de8d96335a99}">
+      <Declaration><![CDATA[PROPERTY isLoggerEnabled : BOOL]]></Declaration>
+      <Get Name="Get" Id="{d0cd4795-6adf-4c06-99d4-c276b6d8e4e6}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="isNagaraEnable" Id="{fe65cd0c-f0a9-4d6c-885d-17e5b02d0b1e}">
+      <Declaration><![CDATA[PROPERTY isNagaraEnable : BOOL]]></Declaration>
+      <Get Name="Get" Id="{4aedbbd8-5c8a-48cf-ade5-ec7ce539d0c0}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

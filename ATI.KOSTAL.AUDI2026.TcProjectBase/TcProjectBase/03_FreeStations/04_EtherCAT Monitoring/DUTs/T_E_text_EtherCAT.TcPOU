@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="T_E_text_EtherCAT" Id="{cd64bb43-835f-4e86-984e-5d77e1ca43e3}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK T_E_text_EtherCAT EXTENDS T_E_text_Common
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Property Name="allDevicesOk" Id="{1d235980-4095-4c20-b1bd-73314e95f820}">
+      <Declaration><![CDATA[PROPERTY allDevicesOk : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{e84e57ce-ced0-4747-8eb8-ee1d39e5628f}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[allDevicesOk.Number:= 11;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="device_0_isInState_1" Id="{7105d90c-0836-4173-aeb3-65d99943006a}">
+      <Declaration><![CDATA[PROPERTY device_0_isInState_1 : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{62ff15f1-76ee-4745-a4df-9ba4ef4f93b8}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[device_0_isInState_1.Number:= 10;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="name" Id="{a4f69d73-a869-4901-a280-39e2fac8e5f3}">
+      <Declaration><![CDATA[PROPERTY name : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{8a0472f2-2aea-4d79-9be2-22ee1dc92ad5}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[name.Number:= 2;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="T_E_text_EtherCAT">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_EtherCAT.allDevicesOk.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_EtherCAT.device_0_isInState_1.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_EtherCAT.name.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

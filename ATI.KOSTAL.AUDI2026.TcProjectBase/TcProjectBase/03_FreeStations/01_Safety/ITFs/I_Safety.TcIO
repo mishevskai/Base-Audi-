@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <Itf Name="I_Safety" Id="{baf468b0-bf3f-48fa-95b7-6b03bb61a91e}">
+    <Declaration><![CDATA[INTERFACE I_Safety
+]]></Declaration>
+    <Property Name="doorLock" Id="{d4e5cdd7-10d8-44cf-bb45-8aa3265e1026}">
+      <Declaration><![CDATA[PROPERTY PUBLIC doorLock : BOOL]]></Declaration>
+      <Get Name="Get" Id="{5c76633d-644a-496d-b5cd-abdc98f6241e}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+      <Set Name="Set" Id="{1b9dece8-2d3a-4d2f-8de3-3e0b3ae99ccb}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Set>
+    </Property>
+    <Property Name="inHold" Id="{f8a6d36b-536e-44e4-baaf-e25567ad39bb}">
+      <Declaration><![CDATA[PROPERTY inHold : BOOL]]></Declaration>
+      <Get Name="Get" Id="{219ec9ae-a0d8-48ab-a07b-fffffa96e448}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="isDoorSafe" Id="{7de6b713-a2a8-42a8-bfcb-32f6ff9b2c2d}">
+      <Declaration><![CDATA[PROPERTY isDoorSafe : BOOL]]></Declaration>
+      <Get Name="Get" Id="{bd00fb9e-51bb-45e4-8cef-d833d52344b3}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="isDoorUsed" Id="{09b63899-f848-45a5-a99a-c9dc8840c4aa}">
+      <Declaration><![CDATA[PROPERTY isDoorUsed : BOOL]]></Declaration>
+      <Get Name="Get" Id="{2b8cc24d-caf8-4e66-9172-d009411c7ef4}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+    <Property Name="isSafe" Id="{6bbdf64d-2bcf-46ff-b423-deaa4449811c}">
+      <Declaration><![CDATA[PROPERTY isSafe : BOOL]]></Declaration>
+      <Get Name="Get" Id="{036d2111-6b1d-40c8-9041-e6c712f75f61}">
+        <Declaration><![CDATA[]]></Declaration>
+      </Get>
+    </Property>
+  </Itf>
+</TcPlcObject>

@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="T_E_text_Fuse" Id="{c8a49c64-d262-4349-b63a-ac422e401bc8}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK T_E_text_Fuse EXTENDS T_E_text_Common
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Property Name="allFusesOk" Id="{21bb1c91-a78a-4577-861d-a4c0a08af0a6}">
+      <Declaration><![CDATA[PROPERTY allFusesOk : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{deacaa57-d416-4eaf-be50-8022c70fb033}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[allFusesOk.Number:= 11;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="fuse_0_tripped" Id="{8f62ed67-06e6-4e19-9b45-4e9d99de17f8}">
+      <Declaration><![CDATA[PROPERTY fuse_0_tripped : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{2201fcf2-6757-4bf2-ae80-c395954698b3}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[fuse_0_tripped.Number:= 10;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="name" Id="{81c95c70-60ef-42bb-bfd9-abe58fa5b682}">
+      <Declaration><![CDATA[PROPERTY name : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{5811258e-0bb4-44b8-9423-124d411851b3}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[name.Number:= 2;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="T_E_text_Fuse">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Fuse.allFusesOk.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Fuse.fuse_0_tripped.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_Fuse.name.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,2145 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_StationBase" Id="{47ca1f02-1eb7-4deb-9e35-941fce14d08c}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ABSTRACT FB_StationBase EXTENDS KOSTAL_AF2024_Core_Station.FB_Station_Controlled 
+VAR PERSISTENT
+	_isCameraMasterDone					: BOOL;
+	_lastCameraMasterTime				: DINT;	
+END_VAR                         		
+VAR                             		
+	(* General *)  	            		
+	_Hmi_station						: KOSTAL_AF2024_HMI_WinHMI.FB_Page_Station;
+	_E_TextCommon						: T_E_text_Common;
+	_IgetTime							: KOSTAL_AF2024_Core_GetSystemTime.I_TimeSource;
+	_isDevicesInit						: BOOL;
+	_cylinderInManualMode				: BOOL;
+	_manualModeInterlock				: BOOL;
+	_onPowerOff							: Tc2_Standard.R_TRIG;
+	_onNagaraSwitch						: Tc2_Standard.R_TRIG;
+//	_onAbortButton						: Tc2_Standard.R_TRIG;
+	_timerCycleTimer					: Tc2_Standard.TON;
+	_addressRestart						: INT;
+	_tempText							: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+	_isHomeControkOk					: BOOL;
+	_TextSplitter						: KOSTAL_AF2024_Core_StringTools.FB_Split;
+	_cycleTime							: TIME;
+	_CloseAllSockets					: Tc2_TcpIp.FB_SocketCloseAll;
+	_isTcpIpInit						: BOOL;
+	_WritePersistentData				: Tc2_Utilities.WritePersistentData;
+	(* Camera master *)         		
+	_onShiftChange						: Tc2_Standard.R_TRIG;
+	_cameraMasterOnStartupDone			: BOOL;
+	_isCameraMasterBadPartDone			: BOOL;
+	_isCameraMasterGoodPartDone			: BOOL;
+	_timeForMaster						: BOOL; 
+	(* Process *)               		
+	_isStepInit							: BOOL;
+	_onStateHome						: Tc2_Standard.R_TRIG;
+	_SubStep							: KOSTAL_AF2024_Core_Process.FB_processStep_Flow;
+	_lastSubStep						: INT;
+	_stepDescription					: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	_subStepError						: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	_subStepMessage						: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	_onSubStepRetryAbort				: Tc2_Standard.R_TRIG;
+	_retryPartsInSeries					: INT;
+	_partOk								: BOOL;
+	_partNok							: BOOL;
+	(* Interface *)             		
+	_IresettableCounter					: KOSTAL_AF2024_Misc_Counter.I_T_CounterSet;
+	_ItotalCounter						: KOSTAL_AF2024_Misc_Counter.I_T_CounterSet;
+	_IparametersBase					: I_Parameters_MainControl;
+	_IStation							: I_CustomStationInterface; 
+	(* Sensors *)
+	DI_NagaraSwitch				 AT %I* : BOOL; 
+//	DI_AbortButton				 AT %I* : BOOL;
+	(* Process Light *)
+	DO_ProcessLightGreenLamp	 AT %Q* : BOOL;
+	DO_ProcessLightRedLamp		 AT %Q* : BOOL;
+	DO_ProcessLightYellowLamp	 AT %Q* : BOOL;
+	DO_ProcessLightBlueLamp		 AT %Q* : BOOL;
+	(* IX camera *)
+	 _InternalResponse					: TcNexa_Components_TcProcess.FB_MethodResponse;
+	(* SPC counter *)
+	_counterForSCPmode					: INT;
+	_isSPCmodeActive					: BOOL;
+END_VAR
+VAR CONSTANT
+	(* Step *)
+	_ADDRESS_POWEROFF					: INT:= 0;
+	_ADDRESS_READY						: INT:= 30;	
+	_ADDRESS_PASS						: INT:= 100;
+	_ADDRESS_FAIL						: INT:= 200;
+	_ADDRESS_SPCMODE					: INT:= 300;
+	_ADDRESS_RUNOUT						: INT:= 350;
+	_ADDRESS_CAMERA_MASTER				: INT:= 400;
+	
+	(* Sub Step *)              		
+	_SUB_ADDRESS_PASS					: INT:= 600;
+	_SUB_ADDRESS_RETRY_ABORT			: INT:= 700;
+	_SUB_ADDRESS_ABORT					: INT:= 800;
+	(* General *)               		
+	_UNLIMITED_RETRY_NUMBER				: INT:= -1;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Folder Name="Abstract " Id="{a32705d4-546e-4f66-982c-0b36578c4f36}" />
+    <Folder Name="Internal" Id="{c99a180f-1411-463b-8e89-702d19d48e2d}" />
+    <Folder Name="Protected" Id="{3fdc6c7e-b943-40a8-bcb6-6d5d7f52901b}" />
+    <Folder Name="Steps" Id="{27e88f85-001b-41a5-b6c6-f49ea33ff6cc}" />
+    <Method Name="_a0_Fail" Id="{023acf6e-f0d6-4b9b-b2b4-f11048adf6dc}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a0_Fail
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= INT_TO_WSTRING(_step.actual));
+
+_message.clear();
+_message.line_01:= _Text.GetText(Number:= _E_TextCommon.step_0_DoesNotExist);
+_condition.setMessage(
+	priority	:= _condition.PriorityLevel_Error + 1000,
+	message		:= _message);
+_log(Text:= _message.toString());]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a1_000_PowerOff" Id="{c77377fa-8dfd-419c-834c-58377bb3d47b}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a1_000_PowerOff
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_Hmi_station.clear();
+	_log(Text:= _Text.GetText(Number:= _E_TextCommon.off));
+	_state.SetUnique_PowerOff();
+	_stepDescription:= "PowerOff";
+END_IF
+
+_condition.clear();
+_message.clear();
+_Hmi_station.clear_controls();
+
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.off), 
+	userAction		:= "", 
+	isErrorMessage	:= FALSE);
+
+IF _mainControl.Demand.PowerOn THEN
+	_log(Text:= _Text.GetText(Number:= _E_TextCommon.on));
+	_step.INC();
+ELSIF _Hmi_station.Button_OnOff.Pulse THEN
+	;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a1_001_PowerOn" Id="{815546fd-472e-48eb-965a-70c7dce13cb4}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a1_001_PowerOn
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_state.SetUnique_PowerOn();
+	_stepDescription:= "PowerOn";
+END_IF
+
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.on), 
+	userAction		:= "", 
+	isErrorMessage	:= FALSE);
+
+IF _mainControl.Demand.OnToHome THEN
+	_step.Condition:= TRUE;
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a1_X_Finish" Id="{75fe071e-ccc6-4e08-85ac-5831f5f3c69e}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a1_X_Finish
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_state.SetUnique_Finish();
+END_IF
+
+_step.set(request:= _ADDRESS_READY);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_002_HomeStation" Id="{3b2b70ea-5990-499e-8cda-659606e9f104}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _a2_002_HomeStation
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_030_Ready" Id="{58bb5520-7496-4af0-97a0-fbfb67b6e725}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_030_Ready
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_partOk:= FALSE;
+	_partNok:= FALSE;
+	_state.SetUnique_Home();
+	_stepDescription:= "Ready";
+END_IF
+
+_isHomeControkOk:= _a2_030_Ready_HomeControl();
+
+(* Machine is in stop state *)
+IF NOT _mainControl.Demand.Run THEN
+	_Text.ClearVars();
+	_Text.AddVar(Text:= _Text.GetText(Number:= _E_TextCommon.stop));
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_TextCommon.mainControlIsIn_0_state), 
+		userAction		:= "", 
+		isErrorMessage	:= FALSE);
+ELSIF _cylinderInManualMode THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_TextCommon.stationInManualMode), 
+		userAction		:= _Text.GetText(Number:= _E_TextCommon.cylinderInManualMode), 
+		isErrorMessage	:= FALSE);
+ELSIF _isHomeControkOk THEN
+	_a2_030_Ready_ConditionControl();
+END_IF
+
+_step.Control();
+
+IF _step.Done THEN
+	_state.SetUnique_Busy();
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_030_Ready_ConditionControl" Id="{b04202b5-9abb-4ea3-bbf7-4ca550c84d6c}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _a2_030_Ready_ConditionControl
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_030_Ready_HomeControl" Id="{a93701bc-a14e-450a-8a1a-615db5d81aa9}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _a2_030_Ready_HomeControl : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_CognexCameraTrigerTCPIP" Id="{b77504bc-0dcc-477f-b421-a7cd9b78acb7}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_CognexCameraTrigerTCPIP : BOOL
+VAR_INPUT
+	Camera				 : KOSTAL_AF2024_Drivers_Camera_Cognex_InSight.I_InSight_TcpIp;
+	targetProgramNum	 : UINT;
+	isCameraEnable		 : BOOL;
+	cameraName			 : STRING;
+	
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "CognexCameraCheck";
+END_IF
+
+(* Check Camera Ready *)
+IF _SubStep.isActive(0) THEN 
+	_addressRestart:= _SubStep.actual;
+	IF NOT isCameraEnable THEN 
+		_a2_X_CognexCameraTrigerTCPIP:= TRUE;
+//		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF NOT Camera.State.ready THEN 
+		_updateHmiTextWithCameraNotReady(name:= STRING_TO_WSTRING( cameraName));
+	ELSE 
+		_addressRestart:= _SubStep.actual;
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Camera triger *) //Ima program number i program name 
+IF _SubStep.isActive(1) THEN 
+	IF NOT Camera.Ex_Trigger_ProgramNumber(ProgramNumber:= targetProgramNum) THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(cameraName));
+	ELSIF NOT Camera.State.finish THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(cameraName));
+	ELSIF NOT Camera.State.pass THEN 
+		_getCameraErrorTexts(
+			name		:= STRING_TO_WSTRING( cameraName),
+			description	:= Camera.State.description);
+		_a2_X_CognexCameraTrigerTCPIP:= FALSE;
+//		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+//		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+		_a2_X_CognexCameraTrigerTCPIP:= TRUE;
+	END_IF
+END_IF
+
+(* Pass *)
+//IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+////	_step.Condition:= TRUE;
+//	_SubStep.INC();
+//END_IF
+(* Fail *)
+//IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+//	_retryAbort(
+//		numOfTargetRetries	:= _IparametersBase.numberOfRetries, 
+//		retryAddress		:= _addressRestart, 
+//		abortAddress		:= _ADDRESS_RUNOUT);
+//END_IF
+
+//_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_CognexReaderScanCode" Id="{26fe27ba-9e77-48bd-bd9f-b06424832250}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_CognexReaderScanCode
+VAR_INPUT
+	Scanner			: KOSTAL_AF2024_Drivers_Scanner_Cognex_DM260.I_Scanner;
+	isScanerEnable	: BOOL;
+END_VAR
+VAR_OUTPUT
+	SFC				: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Da se proba dali kje raboti vaka ako ne kje treba enable na nekoj setting da se napravi 
+//Ili tcp ip 
+
+IF _step.toggle THEN 
+	_stepDescription:= "ScanCode";
+END_IF
+
+(* Wait until scanner is ready *)
+IF _SubStep.isActive(0) THEN 
+	_addressRestart:= _SubStep.actual;
+	IF NOT isScanerEnable THEN 
+		SFC:= '';
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF NOT Scanner.State.ready THEN 
+		_Text.ClearVars();
+		_text.AddVar("41A1");
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_failed),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_notReady),
+			isErrorMessage	:= FALSE);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Execute *)
+IF _SubStep.isActive(1) THEN 
+	IF NOT Scanner.Ex_Scan() THEN 
+		_Text.ClearVars();
+		_text.AddVar("41A1");
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_busy),
+			userAction		:= "",
+			isErrorMessage	:= FALSE);
+	ELSIF NOT Scanner.State.finish THEN 
+		_Text.ClearVars();
+		_text.AddVar("41A1");
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_busy),
+			userAction		:= "",
+			isErrorMessage	:= FALSE);
+	ELSIF NOT Scanner.State.pass THEN 
+		_Text.ClearVars();
+		_text.AddVar("41A1");
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_inError),
+			userAction		:= Scanner.State.description,
+			isErrorMessage	:= FALSE);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSIF (Scanner.CodeGet(1) = '') OR (Scanner.CodeGet(1) = 'ERROR') OR (Scanner.CodeGet(1) = 'NONE') THEN 
+		_Text.ClearVars();
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_failed),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_noCode),
+			isErrorMessage	:= FALSE);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);	
+	END_IF
+END_IF
+
+(* Pass *) 
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN 
+	SFC:= Scanner.CodeGet(number:= 1);
+	_step.Condition:= TRUE;
+END_IF
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _IparametersBase.numberOfRetries,
+		retryAddress		:= _addressRestart, 
+		abortAddress		:= _ADDRESS_FAIL);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_KeyenceIVCameraTrigerDIO" Id="{565ad191-7bc0-4e7a-8e9e-e728ff53b17a}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_KeyenceIVCameraTrigerDIO : BOOL 
+VAR_INPUT
+	camera					 : KOSTAL_AF2024_Drivers_Camera_I_Camera.I_CameraWithFeedback; 
+	targetProgramNum		 : UINT;
+	cameraName				 : STRING;
+	
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "TigerCameraKeyneceDIO";
+END_IF
+
+(* CheckCameraReady? *)
+IF _SubStep.isActive(0) THEN 
+	_addressRestart:= _SubStep.actual;
+END_IF
+
+(* Camera triger *)
+IF _SubStep.isActive(1) THEN 
+	IF NOT Camera.Ex_Trigger_ProgramNumber(ProgramNumber:= targetProgramNum) THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(cameraName));
+	ELSIF NOT Camera.State.finish THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(cameraName));
+	ELSIF NOT Camera.State.pass THEN 
+		_getCameraErrorTexts(
+			name		:= STRING_TO_WSTRING(cameraName),
+			description	:= Camera.State.description);
+		_a2_X_KeyenceIVCameraTrigerDIO:= FALSE;
+	ELSE 
+		_a2_X_KeyenceIVCameraTrigerDIO:= TRUE;
+	END_IF
+END_IF
+
+//(* Pass *)
+//IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+//	_step.Condition:= TRUE;
+//END_IF
+
+//_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_KeyenceIXCameraTriger" Id="{12f0d344-41a2-45bd-9b6e-5d65eb8a958e}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_KeyenceIXCameraTriger : BOOL
+VAR_INPUT
+	Camera					 : TcNexa_Devices_Camera_TcCamera.I_Camera;
+	IXtargerProgramNum	 	 : UINT;
+	isIXcameraEnable		 : BOOL;
+	IXcameraName			 : KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+	
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "IXCameraCheck";
+END_IF
+
+(*Chech parameters *)
+IF _SubStep.isActive(0) THEN 
+	IF NOT isIXcameraEnable THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Set program number *)
+IF _SubStep.isActive(0) THEN 
+	Camera.setProgramNumber(
+		programNumber:= IXtargerProgramNum,
+		Response:= _InternalResponse);
+	IF _InternalResponse.busy THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(IXcameraName));
+	ELSE 
+		_SubStep.INC(); 
+	END_IF
+END_IF 
+(* Triger camera *)
+IF _SubStep.isActive(2) THEN 
+	Camera.inspect(Response:= _InternalResponse);
+	IF _InternalResponse.busy THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING( IXcameraName));
+	ELSIF _InternalResponse.error THEN
+//		_a2_X_KeyenceIXCameraTriger:= FALSE; 
+		_getCameraErrorTexts(
+			name:= STRING_TO_WSTRING(IXcameraName),
+			description:= _Text.GetText(Number:= _E_TextCommon.camera_0_inError));
+		_updateHmiText(
+			userMessage:= STRING_TO_WSTRING( IXcameraName), 
+			userAction:=  _Text.GetText(Number:= _E_TextCommon.camera_0_inError),
+			isErrorMessage:= FALSE); 
+	ELSE 
+		_a2_X_KeyenceIXCameraTriger:= TRUE;
+	END_IF
+END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+
+_step.Control();
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_KeyenceScanCode" Id="{49acc7f6-58ae-4c27-90bc-696f74fed5c1}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_KeyenceScanCode
+VAR_INPUT
+	Scanner				: KOSTAL_AF2024_Drivers_Scanner_IScanner.I_Scanner;
+	isScannerEnable		: BOOL;
+	ScannerName			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+VAR_OUTPUT
+	SFC					: KOSTAL_AF2024_Core_Settings.T_MaxString_UTF8;
+END_VAR
+VAR 
+	_tempInterger		: INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "ScanHousing";
+	Scanner.ClearCodes();
+END_IF
+
+(* wait until scanner is ready *)
+IF _SubStep.isActive(0) THEN 
+	_addressRestart:= _SubStep.actual;
+	IF NOT isScannerEnable THEN 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+		SFC:= '';
+	ELSIF NOT Scanner.State.ready THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= ScannerName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_failed),
+			userAction		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_notReady),
+			isErrorMessage	:= FALSE);
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+(* Execute *)
+IF _SubStep.isActive(1) THEN 
+	IF NOT Scanner.Ex_Scan() THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= ScannerName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_busy),
+			userAction		:= "",
+			isErrorMessage	:= FALSE);	
+	ELSIF NOT Scanner.State.finish THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= ScannerName);
+		_updateHmiText(
+			userMessage		:= _Text.GetText(Number:= _E_TextCommon.scanner_0_busy),
+			userAction		:= "",
+			isErrorMessage	:= FALSE);	
+	ELSIF NOT Scanner.State.pass THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= ScannerName);
+		_retryPartsInSeries:= _retryPartsInSeries+1 ;
+		_subStepError:= _Text.GetText(Number:= _E_TextCommon.scanner_0_inError);
+		_subStepMessage:= Scanner.State.description;
+		_SubStep.set(request:= _SUB_ADDRESS_ABORT);
+	ELSIF (Scanner.CodeGet(1) = '') OR (Scanner.CodeGet(1) = 'NONE') OR (Scanner.CodeGet(1) = 'Error') THEN 
+		_Text.ClearVars();
+		_Text.AddVar(Text:= ScannerName);
+		_retryPartsInSeries:= _retryPartsInSeries+1 ;
+			_subStepError:= _Text.GetText(Number:= _E_TextCommon.scanner_0_failed);
+			_subStepMessage:= _Text.GetText(Number:= _E_TextCommon.barcodeNotfound);
+			_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF
+
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	SFC:= Scanner.CodeGet(number:= 1);
+	_step.Condition:= TRUE;
+END_IF
+(* Fail - Retry/Abort *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _IparametersBase.numberOfRetries, 
+		retryAddress		:= _addressRestart, 
+		abortAddress		:= _ADDRESS_RUNOUT);
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_ABORT) THEN
+	_abort(abortAddress:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_LockPart" Id="{965d9ee1-7fb6-4a5e-8ed8-4e49d18148dd}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_LockPart
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_stepDescription:= "LockHousing";
+END_IF
+
+(* Lock Housing *)
+IF _SubStep.isActive(0) THEN
+	IF Cylinder.moveTo_B() THEN
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF Cylinder.Error.active THEN
+		_subStepMessage:= Cylinder.Error.text;
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE
+		_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= Cylinder);
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER, 
+		retryAddress		:= _addressRestart, 
+		abortAddress		:= _ADDRESS_RUNOUT);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_PartNok" Id="{ca30d499-ad6b-4d44-ae6d-89ea3338c349}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_PartNok
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	IF (_IresettableCounter <> 0) THEN _IresettableCounter.Fail.INC(); END_IF
+	IF (_ItotalCounter <> 0) THEN _ItotalCounter.Fail.INC(); END_IF
+	_partNok:= TRUE;
+	_stepDescription:= "Part NOK";
+	_subStepError:= "Part NOK";
+	_subStepMessage:= "";
+END_IF
+
+_abort(abortAddress:= _ADDRESS_RUNOUT);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_PartOkWithCounter" Id="{b60392eb-f161-41c1-b213-ba6b8337f08d}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_PartOkWithCounter
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (_IresettableCounter <> 0) THEN _IresettableCounter.Pass.INC(); END_IF
+IF (_ItotalCounter <> 0) THEN _ItotalCounter.Pass.INC(); END_IF
+_partOk:= TRUE;
+_step.set(request:= _ADDRESS_RUNOUT);
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_PartOkWithoutCounter" Id="{223e47b5-238f-42e8-8c47-382050c789f3}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_PartOkWithoutCounter
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_partOk:= TRUE;
+_step.set(request:= _ADDRESS_RUNOUT);
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_RemovePart" Id="{62f7f17d-9122-40ec-8a3c-b891cb6c4df6}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_RemovePart
+VAR_INPUT
+	partDetected		: BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_stepDescription:= "RemovePart";
+END_IF
+
+IF _partOk THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_TextCommon.partOk),
+		userAction		:= _Text.GetText(Number:= _E_TextCommon.removePart),
+		isErrorMessage	:= FALSE);
+ELSIF _partNok THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_TextCommon.partNok),
+		userAction		:= _Text.GetText(Number:= _E_TextCommon.removePart),
+		isErrorMessage	:= FALSE);
+ELSE
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_TextCommon.partUnknown),
+		userAction		:= _Text.GetText(Number:= _E_TextCommon.removePart),
+		isErrorMessage	:= FALSE);
+END_IF
+
+_step.Condition:= NOT partDetected;
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_TrigerCameraKeyenceTcpIp" Id="{319c9760-e9da-401d-a067-4456ce94a849}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_TrigerCameraKeyenceTcpIp : BOOL
+VAR_INPUT
+	Camera					 : KOSTAL_AF2024_Drivers_Camera_Keyence_IV.I_Camera_TcpIp_IV;
+	targerProgramNum		 : UINT;
+	isCameraEnable			 : BOOL;
+	cameraName				 : STRING;
+	
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "TigerCameraKeynece";
+END_IF
+
+(* CheckCameraReady? *)
+IF _SubStep.isActive(0) THEN 
+	_addressRestart:= _SubStep.actual;
+	IF NOT isCameraEnable THEN 
+//		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+		_a2_X_TrigerCameraKeyenceTcpIp:= TRUE;
+	ELSIF NOT Camera.State.ready THEN 
+		_updateHmiTextWithCameraNotReady(name:= STRING_TO_WSTRING (cameraName));
+	ELSE 
+		_SubStep.INC();
+	END_IF
+END_IF
+
+(* Camera triger *)
+IF _SubStep.isActive(1) THEN 
+	IF NOT Camera.Ex_Trigger_ProgramNumber(ProgramNumber:= targerProgramNum) THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(cameraName));
+	ELSIF NOT Camera.State.finish THEN 
+		_updateHmiTextWithCameraBusy(name:= STRING_TO_WSTRING(cameraName));
+	ELSIF NOT Camera.State.pass THEN 
+		_a2_X_TrigerCameraKeyenceTcpIp:= FALSE;
+		_getCameraErrorTexts(
+			name		:= STRING_TO_WSTRING(cameraName),
+			description	:= Camera.State.description);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE 
+//		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+		_a2_X_TrigerCameraKeyenceTcpIp:= TRUE;
+	END_IF
+END_IF
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.INC();
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _IparametersBase.numberOfRetries, 
+		retryAddress		:= _addressRestart, 
+		abortAddress		:= _ADDRESS_RUNOUT); //Check or address runout  ?
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_a2_X_UnlockPart" Id="{7f21309f-fd74-460e-a12a-fe31325c3c27}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _a2_X_UnlockPart
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN
+	_stepDescription:= "UnlockHousing";
+END_IF
+
+(* Unlock Housing *)
+IF _SubStep.isActive(0) THEN
+	IF Cylinder.moveTo_A() THEN
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	ELSIF Cylinder.Error.active THEN
+		_addressRestart:= _SubStep.actual;
+		_getCylinderErrorTexts(Cylinder:= Cylinder);
+		_SubStep.set(request:= _SUB_ADDRESS_RETRY_ABORT);
+	ELSE
+		_updateHmiTextWithCylinderTextMoveToHP(Cylinder:= Cylinder);
+	END_IF
+END_IF
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+(* Fail *)
+IF _SubStep.isActive(_SUB_ADDRESS_RETRY_ABORT) THEN
+	_retryAbort(
+		numOfTargetRetries	:= _UNLIMITED_RETRY_NUMBER, 
+		retryAddress		:= _addressRestart, 
+		abortAddress		:= _step.actual);
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_abort" Id="{fbe025fd-5ae9-4e21-940f-a463da82b848}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _abort
+VAR_INPUT
+	abortAddress		: INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(* Abort button *)
+_Hmi_station.Buttons_Custom.Button(7).Visible:= TRUE;
+_Hmi_station.Buttons_Custom.Button(7).Text:= _Text.GetText(Number:= _E_TextCommon.abort);
+
+_updateHmiText(
+	userMessage		:= _subStepError, 
+	userAction		:= _subStepMessage, 
+	isErrorMessage	:= TRUE);
+
+IF _Hmi_station.Buttons_Custom.Button(7).Pulse OR _IStation.pressedAbortButton  THEN //_onAbortButton.Q
+	_condition.clear();
+	_Hmi_station.Buttons_Custom.Button(7).Visible:= FALSE;
+	_step.set(request:= abortAddress);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_checkCounterSPC" Id="{fa596519-fe6a-4cab-983c-f73cf5c554b9}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _checkCounterSPC
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _step.toggle THEN 
+	_stepDescription:= "SpcCounterCheck";
+END_IF
+
+IF _SubStep.isActive(0) THEN 
+	_counterForSCPmode:= _counterForSCPmode+1; 
+	IF _counterForSCPmode > 5 THEN 
+		_counterForSCPmode:= 0;
+		_isSPCmodeActive:= FALSE;
+		_step.set(request:= _ADDRESS_READY);
+	ELSE 
+		_isSPCmodeActive:= TRUE; 
+		_SubStep.set(request:= _SUB_ADDRESS_PASS);
+	END_IF
+END_IF 
+
+(* Pass *)
+IF _SubStep.isActive(_SUB_ADDRESS_PASS) THEN
+	_step.Condition:= TRUE;
+END_IF
+
+_step.Control();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_deviceDefine" Id="{375736c1-7573-48c7-a4c0-588cfcf39741}" FolderPath="Abstract \">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _deviceDefine 
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_getAxisErrorTexts" Id="{9706f7b7-dc50-47cb-a42b-281b274f4279}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _getAxisErrorTexts
+VAR_INPUT
+	name 			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	description		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= name);
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.axis_0_inError);
+_subStepMessage:= description;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_getCameraErrorTexts" Id="{b3429200-f4ef-47cb-ae1c-3df402b99ac3}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _getCameraErrorTexts
+VAR_INPUT
+	name 			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	description		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= name);
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.camera_0_failed);
+_subStepMessage:= description;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_getCameraIvToolResult" Id="{7da47b12-cc82-456b-9eb2-e22dbf8f16dc}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _getCameraIvToolResult : BOOL
+VAR_INPUT
+	Camera				: KOSTAL_AF2024_Drivers_Camera_Keyence_IV.I_Camera_TcpIp_IV;
+	toolNum				: UDINT;
+END_VAR
+VAR
+	_ICameraTool		: KOSTAL_AF2024_Drivers_Camera_Keyence_IV.I_T_Tool;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Camera.Result.Tools.Get_I(Number:= toolNum, rFound_I:= _ICameraTool, Response:= 0);
+_getCameraIvToolResult:= _ICameraTool.Pass;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_getCylinderErrorTexts" Id="{b1c22023-2726-4b1b-9fe1-2904e37e2b16}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _getCylinderErrorTexts
+VAR_INPUT
+	Cylinder			: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextSplitter.Clear();
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.device,
+	Delimiter	:= "$L");
+	
+_Text.ClearVars();
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 1));
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError);
+_subStepMessage:= Cylinder.Error.text;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_getLineControlErrorTexts" Id="{041312d4-08cb-4e47-a0b8-c0563f6a936f}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _getLineControlErrorTexts
+VAR_INPUT
+	description		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_subStepError:= "Line Contorl failed";
+_subStepMessage:= description;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_globalError" Id="{bb61c7b8-d277-4b4d-9793-55985fc548c9}" FolderPath="Abstract \">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _globalError
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_globalMessage" Id="{a247adf0-f056-47a3-a7ad-853e844813ba}" FolderPath="Abstract \">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _globalMessage
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_handleCameraMaster" Id="{533bce95-dda9-4f54-b4d2-84dd53ef9ae2}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED _handleCameraMaster
+VAR_INPUT
+	FirstShift 	: INT;
+	SecondShift	: INT;
+	ThirdShift	: INT;
+END_VAR
+VAR
+	_tempTimeStruct		: Tc2_Utilities.TIMESTRUCT;
+	_DT					: DATE_AND_TIME;
+	_tempDint			: DINT;
+	_isPreviousDay		: BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_onShiftChange(
+
+	CLK:= 	(WORD_TO_INT(_IgetTime.TimeStruct.Hour) =   FirstShift)//6)
+
+			OR ( WORD_TO_INT(_IgetTime.TimeStruct.Hour) =(SecondShift)) //14)
+
+			OR ( WORD_TO_INT(_IgetTime.TimeStruct.Hour) = (ThirdShift)));//22));
+
+IF _onShiftChange.Q OR NOT _cameraMasterOnStartupDone THEN 
+
+	_IgetTime.TimeStruct.CopyTo(IN:= _tempTimeStruct); 
+
+	_isPreviousDay := FALSE;
+
+	IF (_tempTimeStruct.wHour >= INT_TO_WORD(FirstShift)) AND (_tempTimeStruct.wHour < INT_TO_WORD(SecondShift)) THEN 
+
+		_tempTimeStruct.wHour:= INT_TO_WORD(FirstShift);
+
+	ELSIF (_tempTimeStruct.wHour >= INT_TO_WORD(SecondShift)) AND (_tempTimeStruct.wHour < INT_TO_WORD(ThirdShift)) THEN 
+
+		_tempTimeStruct.wHour:= INT_TO_WORD(SecondShift);
+
+	ELSIF (_tempTimeStruct.wHour >= INT_TO_WORD(ThirdShift)) THEN
+
+		_tempTimeStruct.wHour:= INT_TO_WORD(ThirdShift);
+
+	ELSE 
+
+		_tempTimeStruct.wHour:= INT_TO_WORD(ThirdShift);
+
+		_isPreviousDay := TRUE;
+
+	END_IF
+
+	_tempTimeStruct.wMinute:= 0;
+
+	_tempTimeStruct.wSecond:= 0;
+
+	_tempTimeStruct.wMilliseconds:= 0;
+
+	_DT:= Tc2_Utilities.SYSTEMTIME_TO_DT(TIMESTR:= _tempTimeStruct);
+
+	_tempDint:= DT_TO_DINT(_DT);
+
+	IF _isPreviousDay THEN
+
+		_tempDint	:= _tempDint - 86400;
+
+	END_IF
+
+	IF (_tempDint > _lastCameraMasterTime) THEN 
+
+		_isCameraMasterDone:= FALSE;
+		_timeForMaster:= TRUE; 
+		_lastCameraMasterTime:= _tempDint;
+
+		_WritePersistentData(START:= TRUE);
+
+	END_IF
+
+	_cameraMasterOnStartupDone:= TRUE;
+
+END_IF
+ 
+
+
+
+
+//_onShiftChange(
+//	CLK:= 	(WORD_TO_INT(_IgetTime.TimeStruct.Hour) =   FirstShift)//6)
+//			OR ( WORD_TO_INT(_IgetTime.TimeStruct.Hour) =(SecondShift)) //14)
+//			OR ( WORD_TO_INT(_IgetTime.TimeStruct.Hour) = (ThirdShift)));//22));
+			
+//IF _onShiftChange.Q OR NOT _cameraMasterOnStartupDone THEN 
+//	_IgetTime.TimeStruct.CopyTo(IN:= _tempTimeStruct); 
+//	IF (_tempTimeStruct.wHour >= INT_TO_WORD(FirstShift)) AND (_tempTimeStruct.wHour < INT_TO_WORD(SecondShift)) THEN 
+//		_tempTimeStruct.wHour:= INT_TO_WORD(FirstShift);
+//	ELSIF (_tempTimeStruct.wHour >= INT_TO_WORD(SecondShift)) AND (_tempTimeStruct.wHour < INT_TO_WORD(ThirdShift)) THEN 
+//		_tempTimeStruct.wHour:= INT_TO_WORD(SecondShift);
+//	ELSE 
+//		_tempTimeStruct.wHour:= INT_TO_WORD(ThirdShift);
+//	END_IF
+//	_tempTimeStruct.wMinute:= 0;
+//	_tempTimeStruct.wSecond:= 0;
+//	_tempTimeStruct.wMilliseconds:= 0;
+	
+//	_DT:= Tc2_Utilities.SYSTEMTIME_TO_DT(TIMESTR:= _tempTimeStruct);
+//	_tempDint:= DT_TO_DINT(_DT);
+	
+//	IF (_tempDint > _lastCameraMasterTime) THEN 
+//		_isCameraMasterDone:= FALSE;
+//		_lastCameraMasterTime:= _tempDint;
+//		_WritePersistentData(START:= TRUE);
+//	END_IF
+	
+//	_cameraMasterOnStartupDone:= TRUE;
+//END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_handleCycleTime" Id="{06ce4fba-c648-4a74-86e7-bfbab0c2adc0}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _handleCycleTime
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (_cycleTime <> _timerCycleTimer.ET) AND (_timerCycleTimer.ET <> T#0MS) THEN
+	_cycleTime:= _timerCycleTimer.ET;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_handleManualModeStepDoneMessage" Id="{a1910d53-49d5-48dd-8c98-7c64d4973afd}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _handleManualModeStepDoneMessage
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _SubStep.isActive(stepNumber:= _SUB_ADDRESS_PASS) THEN
+	_updateHmiText(
+		userMessage		:= _Text.GetText(Number:= _E_TextCommon.stepDone),
+		userAction		:= _Text.GetText(Number:= _E_TextCommon.stepContinue),
+		isErrorMessage	:= FALSE);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_handlePersistentData" Id="{c594721d-bb66-4b3c-9240-e3fda0f990d8}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD _handlePersistentData
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_WritePersistentData(
+	NETID	:= '',
+	PORT	:= 851,
+	START	:= FALSE,
+	TMOUT	:= Tc2_System.DEFAULT_ADS_TIMEOUT);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_handleProcessLight" Id="{34c6ce34-b4e1-4dd0-b6ae-c1225c4ebdf8}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _handleProcessLight
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _mainControl.Mode.automatic THEN
+	IF _partOk THEN
+		DO_ProcessLightGreenLamp:= TRUE;
+		DO_ProcessLightRedLamp:= FALSE;
+		DO_ProcessLightYellowLamp:= FALSE;
+		DO_ProcessLightBlueLamp:= FALSE;
+	ELSIF _partNok THEN	
+		DO_ProcessLightGreenLamp:= FALSE;
+		DO_ProcessLightRedLamp:= TRUE;
+		DO_ProcessLightYellowLamp:= FALSE;
+		DO_ProcessLightBlueLamp:= FALSE;
+	ELSIF _condition.isError() OR _condition.isMessage() THEN
+		DO_ProcessLightGreenLamp:= FALSE;
+		DO_ProcessLightRedLamp:= FALSE;
+		DO_ProcessLightYellowLamp:= FALSE;
+		DO_ProcessLightBlueLamp:= TRUE;	
+	ELSE
+		DO_ProcessLightGreenLamp:= FALSE;
+		DO_ProcessLightRedLamp:= FALSE;
+		DO_ProcessLightYellowLamp:= TRUE;
+		DO_ProcessLightBlueLamp:= FALSE;	
+	END_IF	
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_hmiDefine" Id="{457ac89e-25b1-4a79-a99e-201386ea0fcd}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _hmiDefine
+VAR
+	_temp		: WSTRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Hmi_station.FBmain();
+(* Set station name *)
+_temp:= TIME_TO_WSTRING(_cycleTime);
+_temp:= Tc2_Standard.WRIGHT(
+	STR:= _temp,
+	SIZE:= Tc2_Standard.WLEN(_temp) - 2);
+_Hmi_station.Name:= Tc2_Standard.WCONCAT(
+	STR1:= _ID.name,
+	STR2:= " [");
+_Hmi_station.Name:= Tc2_Standard.WCONCAT(
+	STR1:= _Hmi_station.Name,
+	STR2:= _temp);
+_Hmi_station.Name:= Tc2_Standard.WCONCAT(
+	STR1:= _Hmi_station.Name,
+	STR2:= "]");
+_mainControl.ParticipantName:= _ID.name;
+(* Set text lines on Hmi *)
+_Hmi_station.Text.line_01:= _condition.Message.line_01;
+_Hmi_station.Text.line_02:= _condition.Message.line_02;
+_Hmi_station.Text.line_03:= _condition.Message.line_03;
+_Hmi_station.Status.CopyFrom(IN:= _condition);
+(* Reset button *)
+_Hmi_station.Button_Escape.Visible:= _condition.isError() AND _mainControl.Mode.manual;
+_Hmi_station.Button_Escape.Text:= _Text.GetText(Number:= _E_TextCommon.reset);
+(* Plus button *)
+_Hmi_station.Button_Plus.Visible:= _mainControl.Mode.manual AND (_step.actual > _ADDRESS_POWEROFF);
+_Hmi_station.Button_Plus.Text:= _Text.GetText(Number:= _E_TextCommon.plus);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_modeHandler" Id="{52dd51d7-d1f6-4ee8-820a-c299494dcab6}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _modeHandler
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_manualModeInterlock:= _mainControl.Mode.automatic OR NOT _state.Home;
+_step.mode.automatic:= _mainControl.Mode.automatic AND NOT _condition.isError() AND NOT _cylinderInManualMode;
+_step.mode.manual:= _mainControl.Mode.manual;
+_step.StepNumberHome:= _ADDRESS_READY;
+_step.LinkManual(
+	Forward	:= _Hmi_station.Button_Plus.Pulse,
+	Backward:= FALSE);
+_step.ManualWithCondition:= TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_moveCylinderToPossA" Id="{a7ce1a11-d0af-4788-86d0-9d504498c701}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _moveCylinderToPossA : BOOL;
+VAR_INPUT
+	Cylinder			: I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF Cylinder.moveTo_A() THEN 
+	_moveCylinderToPossA:= TRUE;
+ELSIF Cylinder.Error.active THEN 
+	_moveCylinderToPossA:= FALSE;
+	_updateHmiTextWithCylinderErrorSensorA(Cylinder:= Cylinder);
+ELSE 
+	_updateHmiTextWithCylinderTextMoveToHP(Cylinder:= Cylinder);
+END_IF
+	
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_moveCylinderToPossB" Id="{06c8a968-bafd-4de7-8851-abef73fa5da4}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _moveCylinderToPossB : BOOL;
+VAR_INPUT
+	Cylinder			: I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF Cylinder.moveTo_B() THEN 
+	_moveCylinderToPossB:= TRUE;
+ELSIF Cylinder.Error.active THEN 
+	_moveCylinderToPossB:= FALSE;
+	_updateHmiTextWithCylinderErrorSensorB(Cylinder:= Cylinder);
+ELSE 
+	_updateHmiTextWithCylinderTextMoveToWP(Cylinder:= Cylinder);
+END_IF
+	
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_resetCondition" Id="{654a3fbf-b9e2-4b95-becc-14a2deabd9c3}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _resetCondition
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF _condition.isError() THEN
+	IF _Hmi_station.Button_Escape.Pulse THEN
+		_condition.clear();
+	END_IF
+ELSE
+	_condition.clear();	
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_resetTcpIp" Id="{10d9feaf-3ee6-496d-aa9f-c7fb8236b99f}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _resetTcpIp
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_CloseAllSockets(bExecute:= NOT _isTcpIpInit);
+_isTcpIpInit:= TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_retryAbort" Id="{2999e59e-253b-4c6b-b784-c959085e458b}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _retryAbort
+VAR_INPUT
+	numOfTargetRetries	: INT;
+	retryAddress		: INT;
+	abortAddress		: INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(* Abort button *)
+_Hmi_station.Buttons_Custom.Button(7).Visible:= TRUE;
+_Hmi_station.Buttons_Custom.Button(7).Text:= _Text.GetText(Number:= _E_TextCommon.abort);
+(* Retry button *)
+IF (_retryPartsInSeries <= numOfTargetRetries) OR (numOfTargetRetries = _UNLIMITED_RETRY_NUMBER) THEN
+	_Hmi_station.Buttons_Custom.Button(1).Visible:= TRUE;
+	_Hmi_station.Buttons_Custom.Button(1).Text:= _Text.GetText(Number:= _E_TextCommon.retry);	
+	_updateHmiText(
+		userMessage		:= _subStepError, 
+		userAction		:= _subStepMessage, 
+		isErrorMessage	:= TRUE);
+ELSE
+	_Hmi_station.Buttons_Custom.Button(1).Visible:= FALSE;
+	_updateHmiText(
+		userMessage		:= _subStepError, 
+		userAction		:= _subStepMessage,
+		isErrorMessage	:= TRUE);
+END_IF
+
+IF (_Hmi_station.Buttons_Custom.Button(1).Pulse OR _onNagaraSwitch.Q) AND _Hmi_station.Buttons_Custom.Button(1).Visible THEN
+	_condition.clear();
+	_Hmi_station.Buttons_Custom.Button(1).Visible:= FALSE;
+	_Hmi_station.Buttons_Custom.Button(7).Visible:= FALSE;
+	_SubStep.set(request:= retryAddress);
+ELSIF _Hmi_station.Buttons_Custom.Button(7).Pulse OR _IStation.pressedAbortButton THEN //_onAbortButton.Q 
+	_condition.clear();
+	_Hmi_station.Buttons_Custom.Button(1).Visible:= FALSE;
+	_Hmi_station.Buttons_Custom.Button(7).Visible:= FALSE;
+	_step.set(request:= abortAddress);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_stepHeader" Id="{d5d502a2-3515-4507-8249-c1beb88abf99}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD INTERNAL _stepHeader
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT _isStepInit THEN
+	_step.init();
+	_isStepInit:= TRUE;
+ELSIF _mainControl.Demand.PowerOff AND (_step.actual <> _ADDRESS_POWEROFF) THEN
+	_step.init();
+END_IF
+
+_step.Header();
+
+(* Reset *)
+IF _step.toggle THEN
+	_stepDescription:= "";
+	_Hmi_station.clear();
+	_step.Condition:= FALSE;
+	_step.JumpAddress:= 0;
+	_SubStep.init();
+	_retryPartsInSeries:= 0;
+	_addressRestart:= 0;
+END_IF
+(* Sub step *)
+IF (_lastSubStep <> _SubStep.actual) THEN
+	_lastSubStep:= _SubStep.actual;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_steps" Id="{fc171af5-ebdc-4d6d-9437-c3af3980720c}" FolderPath="Steps\">
+      <Declaration><![CDATA[METHOD PROTECTED ABSTRACT _steps
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_temepratureToleranceCheck" Id="{a7c65fd8-dbef-4b7b-827e-a6ecdc3faea0}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _temepratureToleranceCheck  : BOOL
+VAR_INPUT
+	AnalogInput		: REAL;
+	AnalogInputMin	: REAL;
+	AnalogInputMax	: REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF AnalogInputMin < 0 THEN 
+	IF AnalogInput < AnalogInputMin AND AnalogInput < AnalogInputMax THEN 
+		_temepratureToleranceCheck:= TRUE;
+	ELSE 
+		_temepratureToleranceCheck:= FALSE;
+	END_IF
+ELSE 
+	IF AnalogInput > AnalogInputMin AND AnalogInput < AnalogInputMax THEN 
+		_temepratureToleranceCheck:= TRUE;
+	ELSE 
+		_temepratureToleranceCheck:= FALSE;
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_TextReader" Id="{d4694f16-c80a-4c1f-9a8f-c9e01436b466}" FolderPath="Internal\">
+      <Declaration><![CDATA[METHOD PROTECTED _TextReader : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.Path:= _TextPath;
+_Text.FBmain();
+
+IF _text.State.fail THEN
+	_updateHmiText(
+		userMessage		:= "TextHandler",
+		userAction		:= _Text.State.description,
+		isErrorMessage	:= TRUE);
+ELSIF NOT _Text.Valid THEN
+	_updateHmiText(
+		userMessage		:= "TextHandler",
+		userAction		:= _Text.State.description,
+		isErrorMessage	:= FALSE);
+END_IF
+
+IF _text.LoadedLanguage <> '' THEN
+	_textInitialized := TRUE;
+END_IF
+_TextReader := _textInitialized;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiText" Id="{a4aa925e-cbf8-48e4-baec-95ccc071d54c}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiText
+VAR_INPUT
+	userMessage		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	userAction		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+	isErrorMessage	: BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_message.clear();
+
+_Text.ClearVars();
+_Text.AddVar(Text:= INT_TO_WSTRING(_step.actual));
+_Text.AddVar(Text:= _stepDescription);
+IF (_SubStep.actual = 32767) THEN
+	_Text.AddVar(Text:= "0");	
+ELSIF (_SubStep.actual <> _SUB_ADDRESS_ABORT) AND (_SubStep.actual <> _SUB_ADDRESS_RETRY_ABORT) THEN
+	_Text.AddVar(Text:= INT_TO_WSTRING(_SubStep.actual));
+ELSE
+	_Text.AddVar(Text:= INT_TO_WSTRING(_lastSubStep));
+END_IF
+_message.line_01:= _Text.GetText(Number:= _E_TextCommon.step_0_actual_1);
+_message.line_02:= userMessage;
+_message.line_03:= userAction;
+IF isErrorMessage AND NOT _condition.isError() THEN
+	_log(Text:= _message.toString());
+END_IF
+
+IF isErrorMessage THEN
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Error,
+		message	:= _message);
+ELSIF (userAction <> "") THEN
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Message,
+		message	:= _message);
+ELSE
+	_condition.setMessage(
+		priority:= _condition.PriorityLevel_Text,
+		message	:= _message);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithAxisBusy" Id="{839035c0-329d-490a-8464-c96fbf469b63}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithAxisBusy
+VAR_INPUT
+	axisName			: KOSTAL_AF2024_Core_Settings.T_MaxString; 
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= axisName); 
+_updateHmiText(
+	userMessage		:=_Text.GetText(Number:= _E_TextCommon.axis_0_isBusy),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithAxisNotReady" Id="{88755f02-fa5e-4913-b483-4d6736b482ed}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithAxisNotReady
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.axis_0_notReady),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);
+			]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCameraBusy" Id="{23942f36-c69c-4ba2-881b-fd38cd924396}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCameraBusy
+VAR_INPUT
+	name 			: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= name);
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.camera_0_isBusy),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCameraNotReady" Id="{d5c56030-de68-485c-a403-5e19fcce98fb}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCameraNotReady
+VAR_INPUT
+	name		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= name);
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.camera_0_notReady),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCylinderError" Id="{b2b71759-64bb-4b1d-b020-25013bcbff61}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCylinderError
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextSplitter.Clear();
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.device,
+	Delimiter	:=  "$L");
+
+_Text.ClearVars();
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 1));
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError),
+	userAction		:= Cylinder.Error.text,
+	isErrorMessage	:= TRUE);
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError);
+//_subStepMessage:= Cylinder.Error.text;
+
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.sensor_A,
+	Delimiter	:=  "$L");
+
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 2));
+_subStepMessage:= _Text.GetText(Number:= _E_TextCommon.sensorFail);
+	]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCylinderErrorSensorA" Id="{800cadff-d04d-4e0c-94e3-916eed06a73f}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCylinderErrorSensorA
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextSplitter.Clear();
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.device,
+	Delimiter	:=  "$L");
+
+_Text.ClearVars();
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 1));
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError),
+	userAction		:= Cylinder.Error.text,
+	isErrorMessage	:= TRUE);
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError);
+//_subStepMessage:= Cylinder.Error.text;
+
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.sensor_A,
+	Delimiter	:=  "$L");
+
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 2));
+_subStepMessage:= _Text.GetText(Number:= _E_TextCommon.sensorFail);
+	]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCylinderErrorSensorB" Id="{7013f792-e482-4176-be22-413a10222188}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCylinderErrorSensorB
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextSplitter.Clear();
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.device,
+	Delimiter	:=  "$L");
+
+_Text.ClearVars();
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 1));
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError),
+	userAction		:= Cylinder.Error.text,
+	isErrorMessage	:= TRUE);
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_inError);
+//_subStepMessage:= Cylinder.Error.text;
+
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.sensor_B,
+	Delimiter	:=  "$L");
+
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 2));
+_subStepMessage:= _Text.GetText(Number:= _E_TextCommon.sensorFail);
+	]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCylinderTextMoveToHP" Id="{529916f5-0cf8-4d32-ba34-af7ccf15cc1e}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCylinderTextMoveToHP
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextSplitter.Clear();
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.device,
+	Delimiter	:=  "$L");
+
+_Text.ClearVars();
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 1));
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_moveToHPInProgress),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_moveToHPInProgress);
+_subStepMessage:= "";]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithCylinderTextMoveToWP" Id="{84a55d79-d7c5-491d-a2f3-ad87d1394ec7}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithCylinderTextMoveToWP
+VAR_INPUT
+	Cylinder		: KOSTAL_AF2024_Drivers_Actuation_Cylinder.I_Cylinder_Controlled;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_TextSplitter.Clear();
+_TextSplitter.Split_Delimiter(
+	Line		:= Cylinder.Name.device,
+	Delimiter	:=  "$L");
+
+_Text.ClearVars();
+_Text.AddVar(Text:= _TextSplitter.Results.line_GET(numberOfLine:= 1));
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_moveToWPInProgress),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);
+
+_subStepError:= _Text.GetText(Number:= _E_TextCommon.cylinder_0_moveToWPInProgress);
+_subStepMessage:= "";]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithLineControlNotReady" Id="{cd047705-02ec-493f-b829-e410e74b937b}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithLineControlNotReady
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_updateHmiText(
+	userMessage:= "Line Contorl busy",
+	userAction:= "",
+	isErrorMessage:= FALSE);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="_updateHmiTextWithSensorFailText" Id="{c3f8e65d-f9c1-4d25-a634-eca5e112f298}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD PROTECTED _updateHmiTextWithSensorFailText
+VAR_INPUT
+	sensorName		: KOSTAL_AF2024_Core_Settings.T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_Text.ClearVars();
+_Text.AddVar(Text:= sensorName);
+_updateHmiText(
+	userMessage		:= _Text.GetText(Number:= _E_TextCommon.sensorFail),
+	userAction		:= "",
+	isErrorMessage	:= FALSE);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="FBmain" Id="{f0537eaf-7f7e-4cfa-9a96-e14fba530749}">
+      <Declaration><![CDATA[METHOD FBmain
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT _parameterControl() THEN RETURN; END_IF
+
+_onStateHome(CLK:= _state.Home);
+
+_hmiDefine();
+_resetTcpIp();
+_deviceDefine();
+_resetCondition();
+
+IF NOT _TextReader() THEN RETURN; END_IF
+
+_globalError();
+_globalMessage();
+_modeHandler();
+_stepHeader();
+_steps();
+_handleProcessLight();
+_handleCycleTime();
+_handleManualModeStepDoneMessage();
+//_handleCameraMaster(); //DA se definira lokalno ne vo baza
+_handlePersistentData();
+_onPowerOff(CLK:= _state.PowerOff);
+_onNagaraSwitch(CLK:= DI_NagaraSwitch);
+//_onAbortButton(CLK:= DI_AbortButton);
+_onSubStepRetryAbort(CLK:= (_SubStep.actual = _SUB_ADDRESS_RETRY_ABORT));
+IF _onSubStepRetryAbort.Q THEN
+	_retryPartsInSeries:= _retryPartsInSeries + 1;
+END_IF
+
+_isDevicesInit:= TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="linkCell" Id="{35ff83a1-5cc0-459d-af78-decbe3343956}" FolderPath="Protected\">
+      <Declaration><![CDATA[METHOD  linkCell
+VAR_INPUT
+	IN : I_CustomStationInterface; 
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[_IStation:= IN; ]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_StationBase">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a0_Fail">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="4" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a1_000_PowerOff">
+      <LineId Id="6" Count="20" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a1_001_PowerOn">
+      <LineId Id="6" Count="13" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a1_X_Finish">
+      <LineId Id="6" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_002_HomeStation">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_030_Ready">
+      <LineId Id="6" Count="29" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_030_Ready_ConditionControl">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_030_Ready_HomeControl">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_CognexCameraTrigerTCPIP">
+      <LineId Id="128" Count="47" />
+      <LineId Id="78" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_CognexReaderScanCode">
+      <LineId Id="85" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="5" Count="2" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="19" Count="2" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="28" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="41" Count="2" />
+      <LineId Id="46" Count="5" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="53" Count="5" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="59" Count="2" />
+      <LineId Id="65" Count="3" />
+      <LineId Id="62" Count="1" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="79" Count="5" />
+      <LineId Id="78" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_KeyenceIVCameraTrigerDIO">
+      <LineId Id="172" Count="6" />
+      <LineId Id="187" Count="11" />
+      <LineId Id="200" Count="9" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="224" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_KeyenceIXCameraTriger">
+      <LineId Id="193" Count="2" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="197" Count="6" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="246" Count="0" />
+      <LineId Id="204" Count="1" />
+      <LineId Id="247" Count="0" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="250" Count="1" />
+      <LineId Id="254" Count="0" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="255" Count="2" />
+      <LineId Id="290" Count="3" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="252" Count="0" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="207" Count="3" />
+      <LineId Id="218" Count="2" />
+      <LineId Id="103" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_KeyenceScanCode">
+      <LineId Id="5" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="34" Count="2" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="37" Count="1" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="39" Count="1" />
+      <LineId Id="46" Count="1" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="48" Count="2" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="52" Count="1" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="54" Count="2" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="124" Count="1" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="70" Count="13" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="69" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_LockPart">
+      <LineId Id="7" Count="27" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_PartNok">
+      <LineId Id="6" Count="4" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_PartOkWithCounter">
+      <LineId Id="6" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_PartOkWithoutCounter">
+      <LineId Id="8" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_RemovePart">
+      <LineId Id="7" Count="21" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_TrigerCameraKeyenceTcpIp">
+      <LineId Id="5" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="21" Count="3" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="32" Count="2" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="35" Count="2" />
+      <LineId Id="39" Count="2" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="43" Count="11" />
+      <LineId Id="42" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._a2_X_UnlockPart">
+      <LineId Id="7" Count="27" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._abort">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="1" />
+      <LineId Id="10" Count="9" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._checkCounterSPC">
+      <LineId Id="19" Count="2" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="5" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="27" Count="3" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="13" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._deviceDefine">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._getAxisErrorTexts">
+      <LineId Id="5" Count="1" />
+      <LineId Id="9" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._getCameraErrorTexts">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="2" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._getCameraIvToolResult">
+      <LineId Id="5" Count="0" />
+      <LineId Id="11" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._getCylinderErrorTexts">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="7" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._getLineControlErrorTexts">
+      <LineId Id="6" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._globalError">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._globalMessage">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._handleCameraMaster">
+      <LineId Id="81" Count="62" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="9" Count="5" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="19" Count="3" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="23" Count="8" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._handleCycleTime">
+      <LineId Id="9" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._handleManualModeStepDoneMessage">
+      <LineId Id="6" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._handlePersistentData">
+      <LineId Id="6" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._handleProcessLight">
+      <LineId Id="6" Count="21" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._hmiDefine">
+      <LineId Id="6" Count="25" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._modeHandler">
+      <LineId Id="6" Count="6" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._moveCylinderToPossA">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._moveCylinderToPossB">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._resetCondition">
+      <LineId Id="6" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._resetTcpIp">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._retryAbort">
+      <LineId Id="9" Count="28" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._stepHeader">
+      <LineId Id="6" Count="21" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._steps">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._temepratureToleranceCheck">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._TextReader">
+      <LineId Id="6" Count="18" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiText">
+      <LineId Id="6" Count="30" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithAxisBusy">
+      <LineId Id="5" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="8" Count="3" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithAxisNotReady">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCameraBusy">
+      <LineId Id="5" Count="0" />
+      <LineId Id="9" Count="3" />
+      <LineId Id="7" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCameraNotReady">
+      <LineId Id="6" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCylinderError">
+      <LineId Id="7" Count="9" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="31" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCylinderErrorSensorA">
+      <LineId Id="7" Count="9" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="31" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCylinderErrorSensorB">
+      <LineId Id="7" Count="9" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="31" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCylinderTextMoveToHP">
+      <LineId Id="6" Count="9" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="20" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithCylinderTextMoveToWP">
+      <LineId Id="6" Count="9" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="20" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithLineControlNotReady">
+      <LineId Id="6" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase._updateHmiTextWithSensorFailText">
+      <LineId Id="6" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase.FBmain">
+      <LineId Id="6" Count="15" />
+      <LineId Id="23" Count="4" />
+      <LineId Id="29" Count="7" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_StationBase.linkCell">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

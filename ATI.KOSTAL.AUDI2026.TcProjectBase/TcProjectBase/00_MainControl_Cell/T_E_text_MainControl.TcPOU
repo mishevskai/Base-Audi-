@@ -1,0 +1,411 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="T_E_text_MainControl" Id="{846e043b-cd09-4e3b-97f9-17b4385cca23}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK T_E_text_MainControl EXTENDS KOSTAL_AF2024_Core_Text.T_E_Text
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Property Name="busy" Id="{f2e16b16-5d64-48c2-af31-ab14913a4587}">
+      <Declaration><![CDATA[PROPERTY busy : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{d4012105-90ac-4e02-8417-8f1afc872b64}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[busy.Number:= 36;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="lastCycle" Id="{295bd6f6-f4a7-4426-8c1c-5793400fbf32}">
+      <Declaration><![CDATA[PROPERTY lastCycle : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{d025d58a-8bcd-498b-ad76-708ac6324dab}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[lastCycle.Number:= 37;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="name" Id="{da5fa430-5ab5-40ef-ad4e-f848c2e3231c}">
+      <Declaration><![CDATA[PROPERTY name : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{21698cef-9f1a-4c1b-80bf-c8a317a0df5d}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[name.Number:= 2;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="nextPage" Id="{160deb59-0252-40cf-82cf-b6c5f428fa65}">
+      <Declaration><![CDATA[PROPERTY nextPage : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{6223458b-7941-4e6a-a113-f0e00a2bc9f3}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[nextPage.Number:= 61;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="off" Id="{5d9478bb-aa0f-4983-be74-9bf0ff6a259f}">
+      <Declaration><![CDATA[PROPERTY off : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{c99538f7-0a3b-4a6e-9b86-aab097fc9648}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[off.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+off.Number:= 2;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="onToHomeReleased" Id="{d4fd038c-122a-4416-a234-85b79803d1bf}">
+      <Declaration><![CDATA[PROPERTY onToHomeReleased : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{9bf12418-bb17-4610-9115-0449fd3668d2}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[onToHomeReleased.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+onToHomeReleased.Number:= 42;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="onWith_0" Id="{aa112115-705d-4dce-8894-610fae71219f}">
+      <Declaration><![CDATA[PROPERTY onWith_0 : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{1dc0401f-16ec-4458-a670-24be89555b14}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[onWith_0.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+onWith_0.Number:= 65;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="participantNotReady" Id="{164430b4-6585-4567-b676-f8f5bd8ab700}">
+      <Declaration><![CDATA[PROPERTY participantNotReady : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{370f4149-82d8-4391-9e72-6fe9fff3683c}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[participantNotReady.Number:= 12;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="powerOn" Id="{29cd478f-1b0a-4bc1-946f-5e81d45d43c5}">
+      <Declaration><![CDATA[PROPERTY powerOn : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{9c3181a9-b276-4b40-8328-6659eb4d9189}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[powerOn.Number:= 44;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="previousPage" Id="{70a6b168-cceb-4116-9e15-8317aaa1335d}">
+      <Declaration><![CDATA[PROPERTY previousPage : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{44da14be-984e-424c-a552-2d61505dc0c9}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[previousPage.Number:= 60;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="readyToStart" Id="{70c7c524-006f-4bf1-8877-089547d5a251}">
+      <Declaration><![CDATA[PROPERTY readyToStart : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{e1e7dfc6-6ba4-4ab1-8f6c-d70910afb434}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[readyToStart.Number:=35;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="refresh" Id="{520478a6-8462-41df-ae2e-c4968714d56b}">
+      <Declaration><![CDATA[PROPERTY refresh : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{cefbc5d0-a054-4492-810c-b3b538afcc1d}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[refresh.Number:= 62;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="reset" Id="{ec0fa5f1-befe-4a6c-bf31-7ce4b7496dd2}">
+      <Declaration><![CDATA[PROPERTY reset : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{8e879788-ea21-487d-b178-eac60b7078d6}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[reset.Source:= Kostal_AF2024_Core_Text.E_Source.Common;
+reset.Number:= 7; ]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="run" Id="{6be80cb1-547c-4c61-943b-d324be3d1206}">
+      <Declaration><![CDATA[PROPERTY run : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{e819674b-4d98-452d-948d-c5af1e53e9e7}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[run.Number:= 5;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="safetyInError" Id="{b230dc2b-c2f9-4a5b-9d3c-35c8e035ef53}">
+      <Declaration><![CDATA[PROPERTY safetyInError : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{852824af-83e3-4508-92b1-4afa75b3ba63}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[safetyInError.Number:= 30;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="setAutomaticMode" Id="{58b7c639-15b3-49d0-8b7d-ef309920785a}">
+      <Declaration><![CDATA[PROPERTY setAutomaticMode : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{8972107c-e1de-46d1-b381-73d98ebdd627}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[setAutomaticMode.Number:=41;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="setManualMode" Id="{25a8c015-8502-4fce-90c5-611ad50f9eff}">
+      <Declaration><![CDATA[PROPERTY setManualMode : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{eabf2140-395b-49c0-bdf0-d58d3a15e389}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[setManualMode.Number:= 40;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="start" Id="{4b610585-bb79-4642-ab13-2091eea25464}">
+      <Declaration><![CDATA[PROPERTY start : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{d496ac44-22c9-4902-8d61-bc94dd29cef2}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[start.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+start.Number:= 5;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="step_0_actual_1" Id="{75a27154-3432-4ae3-beac-c01548651dd9}">
+      <Declaration><![CDATA[PROPERTY step_0_actual_1 : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{692bbf4d-dda4-40f8-8819-962b22a4dd4c}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[step_0_actual_1.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+step_0_actual_1.Number:= 11;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="step_0_doesNotExist" Id="{ea175b03-d17a-4bee-980b-39935bf162ba}">
+      <Declaration><![CDATA[PROPERTY step_0_doesNotExist : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{397b4884-c0f6-4186-937d-8df6a114c254}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[step_0_doesNotExist.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+step_0_doesNotExist.Number:= 12;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="stop" Id="{27b4cf7d-6988-40f3-9263-e75321a3aa9d}">
+      <Declaration><![CDATA[PROPERTY stop : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{180ae232-403d-4fa0-b985-e5aacf288930}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[stop.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+stop.Number:= 4;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="textHandlerIsNotReady" Id="{ae5da327-636d-483f-bcb1-60cccc96df8c}">
+      <Declaration><![CDATA[PROPERTY textHandlerIsNotReady : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{48a258c8-763a-47cb-82a7-bc899f987156}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[textHandlerIsNotReady.Source:= KOSTAL_AF2024_Core_Text.E_Source.Common;
+textHandlerIsNotReady.Number:= 20;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="waitForAirPressure_0_1_2" Id="{3daa9b1d-555b-4229-b0ac-4955befb6234}">
+      <Declaration><![CDATA[PROPERTY waitForAirPressure_0_1_2 : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{dd775d49-14eb-4904-8d56-fd60d467c36d}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[waitForAirPressure_0_1_2.Number:= 31;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="waitForAllOff" Id="{3e548221-719d-4f6f-829f-46084fe6e905}">
+      <Declaration><![CDATA[PROPERTY waitForAllOff : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{fc257d21-3650-401e-914f-4cc259848e35}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[waitForAllOff.Number:= 10;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="waitForAllOn" Id="{0065be06-5385-46e2-8066-4311ebd14f92}">
+      <Declaration><![CDATA[PROPERTY waitForAllOn : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{009d783e-d9fd-451d-86c3-654d1c2bc66c}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[waitForAllOn.Number:= 11;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="waitForPowerOn" Id="{cec5138f-a579-4d3a-b92a-b6fcba67d54b}">
+      <Declaration><![CDATA[PROPERTY waitForPowerOn : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{b8f843ec-76f6-4745-b767-d6b92ad5cb98}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[waitForPowerOn.Number:= 13;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="waitFromHome" Id="{716dbd28-0c3a-4a3f-b61c-2a04cfb00672}">
+      <Declaration><![CDATA[PROPERTY waitFromHome : KOSTAL_AF2024_Core_Text.ST_E_Text]]></Declaration>
+      <Get Name="Get" Id="{e90f0f83-1e86-467c-bd59-6d6f4d6f1ed1}">
+        <Declaration><![CDATA[VAR
+END_VAR
+]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[waitFromHome.Number:= 43;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <LineIds Name="T_E_text_MainControl">
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.busy.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.lastCycle.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.name.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.nextPage.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.off.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.onToHomeReleased.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.onWith_0.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.participantNotReady.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.powerOn.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.previousPage.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.readyToStart.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.refresh.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.reset.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.run.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.safetyInError.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.setAutomaticMode.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.setManualMode.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.start.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.step_0_actual_1.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.step_0_doesNotExist.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.stop.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.textHandlerIsNotReady.Get">
+      <LineId Id="5" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.waitForAirPressure_0_1_2.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.waitForAllOff.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.waitForAllOn.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.waitForPowerOn.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="T_E_text_MainControl.waitFromHome.Get">
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
